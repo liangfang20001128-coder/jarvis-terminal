@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: jarvis-agent
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: JARVIS_PORT
+        value: 8787
+      - key: JARVIS_AGENT
+        value: auto
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: JARVIS_OPENAI_MODEL
+        value: gpt-4.1-mini
+      - key: JARVIS_LAUNCH
+        value: "{}"
+      - key: JARVIS_GAME_URL
+        sync: false
