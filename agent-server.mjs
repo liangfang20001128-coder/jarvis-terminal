@@ -346,6 +346,38 @@ function wmoInfo(code) {
 }
 
 const weatherCache = { at: 0, key: "", data: null };
+async function getWeatherWttr(city, lat, lon) {
+  const q = lat && lon ? `${lat},${lon}` : encodeURIComponent(city);
+  const j = await cachedFetch(`https://wttr.in/${q}?format=j1`, { ttl: 600000 });
+  const cur = (j.current_condition || [])[0] || {};
+  const days = (j.weather || []).slice(0, 7).map((d) => {
+    const h = (d.hourly || [])[4] || {};
+    return {
+      date: d.date,
+      ...wmoInfo(Number(h.weatherCode) || 0),
+      tmax: d.maxtempC != null ? Number(d.maxtempC) : null,
+      tmin: d.mintempC != null ? Number(d.mintempC) : null,
+      pop: h.chanceofrain != null ? Number(h.chanceofrain) : null,
+    };
+  });
+  return {
+    city,
+    country: "",
+    lat: lat || null,
+    lon: lon || null,
+    current: {
+      temp: cur.temp_C != null ? Number(cur.temp_C) : null,
+      feels: cur.FeelsLikeC != null ? Number(cur.FeelsLikeC) : null,
+      humidity: cur.humidity != null ? Number(cur.humidity) : null,
+      wind: cur.windspeedKmph != null ? Number(cur.windspeedKmph) : null,
+      ...wmoInfo(Number(cur.weatherCode) || 0),
+    },
+    daily: days,
+    fallback: false,
+    source: "wttr.in",
+  };
+}
+
 async function getWeather(city, lat, lon) {
   const key = `${city}|${lat || ""}|${lon || ""}`;
   if (weatherCache.data && weatherCache.key === key && Date.now() - weatherCache.at < 600000) {
@@ -381,6 +413,15 @@ async function getWeather(city, lat, lon) {
   );
   const cur = f.current || {};
   const daily = f.daily || {};
+  if (!cur.temperature_2m && !daily.time) {
+    try {
+      const w = await getWeatherWttr(city, coords.lat, coords.lon);
+      weatherCache.data = w;
+      weatherCache.key = key;
+      weatherCache.at = Date.now();
+      return w;
+    } catch (e) { /* 保留空结果，前端显示数据源受限 */ }
+  }
   const days = ((daily.time) || []).map((d, i) => ({
     date: d,
     ...wmoInfo((daily.weather_code || [])[i]),
@@ -409,9 +450,15 @@ async function getWeather(city, lat, lon) {
   return data;
 }
 
-async function getWeatherByIP() {
+async function getWeatherByIP(clientIp) {
   try {
-    const j = await cachedFetch("https://ipwho.is/", { ttl: 3600000 });
+    let ip = String(clientIp || "");
+    if (ip.startsWith("::ffff:")) ip = ip.slice(7);
+    const isPrivate =
+      !ip || ip === "::1" || ip === "127.0.0.1" ||
+      ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("172.16.") || ip.startsWith("172.31.");
+    const url = isPrivate ? "https://ipwho.is/" : `https://ipwho.is/${encodeURIComponent(ip)}`;
+    const j = await cachedFetch(url, { ttl: 3600000 });
     if (j && j.success && j.city && j.latitude && j.longitude) {
       const w = await getWeather(j.city, j.latitude, j.longitude);
       return w;
@@ -794,7 +841,9 @@ const server = createServer(async (req, res) => {
   }
   if (url.pathname === "/api/weather/ip") {
     try {
-      return json(res, 200, { ok: true, ...(await getWeatherByIP()) });
+      const fwd = (req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+      const clientIp = fwd || (req.socket && req.socket.remoteAddress) || "";
+      return json(res, 200, { ok: true, ...(await getWeatherByIP(clientIp)) });
     } catch (e) {
       return json(res, 200, { ok: false, error: String(e.message || e) });
     }
