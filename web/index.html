@@ -114,6 +114,11 @@
     border-color: color-mix(in srgb, var(--acc1) 55%, transparent);
     box-shadow: 0 0 14px color-mix(in srgb, var(--acc1) 35%, transparent), inset 0 1px 0 rgba(255,255,255,.28);
   }
+  .h-chip.listening {
+    border-color: #3ef5a6;
+    box-shadow: 0 0 16px rgba(62, 245, 166, .55), inset 0 1px 0 rgba(255,255,255,.3);
+  }
+  .h-chip.listening .wave i { background: #3ef5a6; box-shadow: 0 0 6px #3ef5a6; }
   .wave { display: inline-flex; gap: 2px; align-items: flex-end; height: 10px; }
   .wave i { width: 2px; border-radius: 1px; background: var(--acc1); box-shadow: 0 0 6px var(--acc1); animation: wave 1.1s ease-in-out infinite; }
   .wave i:nth-child(2) { animation-delay: .12s; } .wave i:nth-child(3) { animation-delay: .24s; }
@@ -656,7 +661,7 @@
     </div>
     <div class="sp"></div>
     <div class="h-chip clickable" id="autoLayoutBtn" onclick="window.toggleAutoLayout && window.toggleAutoLayout()">✦ 自动排版</div>
-    <div class="h-chip"><span class="wave"><i></i><i></i><i></i></span> 语音待命</div>
+    <div class="h-chip clickable" id="voiceBtn" title="点击开始/停止语音"><span class="wave"><i></i><i></i><i></i></span> <span id="voiceLabel">语音待命</span></div>
     <div class="h-chip"><span class="dot"></span> 系统在线</div>
   </div>
 
@@ -1100,7 +1105,8 @@
       chat: function () {
         return '<div class="chat-console" id="chatConsole">' +
           '<div class="cc-msg bot">先生，我在。随时听候差遣。</div>' +
-          '</div><div class="cc-hint">▸ 在底部指令栏输入，指令直达智能体核心；回复中的模块指令会自动执行。</div>';
+          '</div><div class="cc-hint">▸ 在底部指令栏输入，指令直达智能体核心；回复中的模块指令会自动执行。</div>' +
+          '<div class="cc-tip" id="ttsToggle" onclick="event.stopPropagation();window.jarvis.toggleTTS(this)" style="cursor:pointer">🔊 语音播报：开</div>';
       },
       hot: function () {
         return '<div class="deep-card"><div class="d-t">热点大屏 · 演示</div>' +
@@ -1675,6 +1681,7 @@
           var el = appendMsg('', 'bot');
           typewrite(el, d.reply || '…', function () {
             if (d.mod && d.mod !== 'chat') window.jarvis.modules.open(d.mod);
+            if (window.jarvis.speak) window.jarvis.speak(d.reply || '');
           });
         })
         .catch(function () {
@@ -1682,6 +1689,7 @@
           var el = appendMsg('', 'bot');
           typewrite(el, r.reply + '（智能体离线，已用本地路由）', function () {
             if (r.mod && r.mod !== 'chat') window.jarvis.modules.open(r.mod);
+            if (window.jarvis.speak) window.jarvis.speak(r.reply);
           });
         });
     }
@@ -1716,6 +1724,7 @@
         return { agent: window.__agent || 'unknown' };
       }
     };
+    window.__sendText = send;
   })();
 </script>
 
@@ -2118,6 +2127,78 @@
     setInterval(loadHot, 60000);
     setInterval(loadAi, 600000);
     setInterval(renderHabit, 30000);
+  })();
+</script>
+
+<script>
+  (function () {
+    /* ==== 真实语音：识别 + 播报 ==== */
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var voiceBtn = document.getElementById('voiceBtn');
+    var voiceLabel = document.getElementById('voiceLabel');
+    var recog = null;
+    var listening = false;
+    var TTS = true;
+    try { TTS = localStorage.getItem('jarvis-tts') !== '0'; } catch (e) {}
+
+    window.jarvis = window.jarvis || {};
+    window.jarvis.speak = function (text) {
+      if (!TTS || !('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        var u = new SpeechSynthesisUtterance(String(text || '').replace(/\[\[module:\w+\]\]/g, '').slice(0, 400));
+        u.lang = 'zh-CN';
+        u.rate = 1;
+        window.speechSynthesis.speak(u);
+      } catch (e) {}
+    };
+    window.jarvis.toggleTTS = function () {
+      TTS = !TTS;
+      try { localStorage.setItem('jarvis-tts', TTS ? '1' : '0'); } catch (e) {}
+      if (!TTS) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+      var t = document.getElementById('ttsToggle');
+      if (t) t.textContent = TTS ? '🔊 语音播报：开' : '🔇 语音播报：关';
+    };
+    function setVoiceState(st) {
+      if (!voiceBtn || !voiceLabel) return;
+      voiceBtn.classList.toggle('listening', st === 'on');
+      voiceLabel.textContent = st === 'on' ? '聆听中…' : (st === 'err' ? '语音需 Chrome' : '语音待命');
+    }
+    function startListen() {
+      if (!SR) {
+        setVoiceState('err');
+        setTimeout(function () { setVoiceState('off'); }, 1800);
+        return;
+      }
+      try { recog = new SR(); } catch (e) { setVoiceState('err'); return; }
+      recog.lang = 'zh-CN';
+      recog.interimResults = false;
+      recog.maxAlternatives = 1;
+      listening = true;
+      setVoiceState('on');
+      recog.onresult = function (e) {
+        var txt = e.results[0][0].transcript;
+        var input = document.getElementById('cmdInput');
+        if (input) input.value = txt;
+        setVoiceState('off');
+        if (txt && window.__sendText) window.__sendText(txt);
+      };
+      recog.onerror = function () { listening = false; setVoiceState('off'); };
+      recog.onend = function () { listening = false; setVoiceState('off'); };
+      try { recog.start(); } catch (e) { listening = false; setVoiceState('off'); }
+    }
+    function stopListen() {
+      if (recog) { try { recog.stop(); } catch (e) {} }
+      listening = false;
+      setVoiceState('off');
+    }
+    if (voiceBtn) {
+      voiceBtn.addEventListener('click', function () {
+        if (listening) stopListen(); else startListen();
+      });
+    }
+    var t0 = document.getElementById('ttsToggle');
+    if (t0) t0.textContent = TTS ? '🔊 语音播报：开' : '🔇 语音播报：关';
   })();
 </script>
 
