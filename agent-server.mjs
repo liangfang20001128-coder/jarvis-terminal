@@ -468,7 +468,7 @@ const server = createServer(async (req, res) => {
   return json(res, 404, { ok: false, error: "not found" });
 });
 
-server.listen(PORT, "127.0.0.1", () => {
+server.listen(PORT, process.env.JARVIS_HOST || "0.0.0.0", () => {
   console.log(
     `JARVIS agent bridge ready at http://127.0.0.1:${PORT}  (agent=${chatMode()})`
   );
