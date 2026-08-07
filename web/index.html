@@ -588,6 +588,42 @@
     box-shadow: 0 0 16px color-mix(in srgb, var(--acc1) 55%, transparent);
   }
   .exp-more:hover { transform: scale(1.05); }
+  .exp-mini {
+    position: absolute;
+    bottom: 12px;
+    right: 14px;
+    z-index: 5;
+    font: 600 10px/1 "PingFang SC", sans-serif;
+    letter-spacing: 2px;
+    color: color-mix(in srgb, var(--txt) 80%, transparent);
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 999px;
+    padding: 8px 13px;
+    cursor: pointer;
+  }
+  .exp-mini:hover { color: var(--acc1); border-color: color-mix(in srgb, var(--acc1) 55%, transparent); }
+  .fp.mini {
+    cursor: pointer;
+    overflow: hidden;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: .5px;
+    padding: 8px;
+  }
+  .fp.mini .mini-x {
+    position: absolute;
+    top: 2px;
+    right: 5px;
+    font-size: 9px;
+    color: color-mix(in srgb, var(--txt) 55%, transparent);
+    cursor: pointer;
+    padding: 2px 4px;
+    z-index: 3;
+  }
+  .fp.mini .mini-x:hover { color: var(--acc1); }
 
   /* ==== chat console + command input ==== */
   .fp-chat { top: 2%; left: 35%; width: 22%; transform-origin: center; }
@@ -676,6 +712,7 @@
       <line data-mode="media" x1="270" y1="360" x2="155" y2="150"/>
       <line data-mode="space" x1="270" y1="360" x2="155" y2="600"/>
       <line data-mode="fate" x1="270" y1="360" x2="740" y2="610"/>
+      <line data-mode="weather" x1="270" y1="360" x2="470" y2="620"/>
     </svg>
     <div class="core-wrap" id="coreWrap">
       <div class="rc-ring rc1"></div>
@@ -768,6 +805,18 @@
       <div class="fate-tip" id="fateTip">宜静观，忌冒进。适合整理今天的信息。</div>
       <button class="cast-btn" id="castBtn">✦ 起卦</button>
     </div>
+
+    <div class="fp fp-weather" data-mode="weather">
+      <div class="lab">天气 · 实时</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+        <div id="wIcon" style="font-size:30px;filter:drop-shadow(0 0 8px color-mix(in srgb, var(--acc1) 50%, transparent))">🌡️</div>
+        <div>
+          <div id="wTemp" class="fate-time" style="font-size:22px">--°</div>
+          <div id="wCity" style="font-size:10px;opacity:.75">定位中…</div>
+        </div>
+      </div>
+      <div id="wDesc" style="font-size:10px;opacity:.7;margin-top:6px">加载实时天气…</div>
+    </div>
   </div>
 
   <div class="h-dock">
@@ -778,6 +827,7 @@
     <div class="chip" data-mode="media">影音</div>
     <div class="chip" data-mode="space">空间</div>
     <div class="chip" data-mode="fate">时运</div>
+    <div class="chip" data-mode="weather">天气</div>
   </div>
 
   <div class="h-cmd">
@@ -1031,7 +1081,8 @@
       habit: { name: '行为洞察', icon: '▤' },
       media: { name: '影音', icon: '▶' },
       space: { name: '空间', icon: '▣' },
-      fate:  { name: '时运', icon: '☯' }
+      fate:  { name: '时运', icon: '☯' },
+      weather: { name: '天气', icon: '⛅' }
     };
     function bar(w) { return '<div class="dw-bar"><i style="width:' + w + '%"></i></div>'; }
 
@@ -1506,11 +1557,12 @@
       var content = (level === 3 ? window.DEEP : window.DETAIL)[mode]();
       var more = level === 2 ? '<div class="exp-more" onclick="event.stopPropagation();window.openLayer(\'' + mode + '\',3)">◈ 深入 · 第三层</div>' : '';
       var close = '<div class="exp-close" onclick="event.stopPropagation();window.closeLayer()">✕</div>';
+      var mini = '<div class="exp-mini" onclick="event.stopPropagation();window.miniLayer(\'' + mode + '\')">▁ 缩小</div>';
       var sx = cw / targetW, sy = ch / targetH;
       f.style.transition = 'none';
       f.style.width = targetW + 'px';
       f.style.height = targetH + 'px';
-      f.innerHTML = content + close + more;
+      f.innerHTML = content + close + more + mini;
       f.style.transformOrigin = 'center center';
       f.style.transform =
         'translate(' + (cx - (f.offsetLeft + targetW / 2)) + 'px,' + (cy - (f.offsetTop + targetH / 2)) + 'px) scale(' + sx + ',' + sy + ')';
@@ -1569,7 +1621,63 @@
     }
     window.openLayer = openLayer;
     window.closeLayer = closeLayer;
+    function miniLayer(mode) {
+      var f = findPanel(mode);
+      if (!f) return;
+      if (f.classList.contains('mini')) { restoreMini(mode); return; }
+      if (f.classList.contains('expanded')) {
+        var m0 = f.getAttribute('data-mode');
+        if (window.__track) window.__track(m0, 'close');
+        f.classList.remove('expanded', 'expanded-2', 'expanded-3');
+        holo.classList.remove('layers-open');
+        fps.forEach(function (p) { p.classList.remove('dim'); });
+      }
+      if (window.__anal) window.__anal('click', 'mini-' + mode);
+      f.style.transition = 'none';
+      f.style.transform = '';
+      f.style.width = '168px';
+      f.style.height = '58px';
+      f.style.overflow = 'hidden';
+      f.innerHTML = (window.MINI && window.MINI[mode] ? window.MINI[mode]() : '◈ ' + mode) +
+        '<div class="mini-x" onclick="event.stopPropagation();window.restoreMini(\'' + mode + '\')">✕</div>';
+      f.classList.add('mini');
+      f.setAttribute('data-level', '0');
+      void f.offsetWidth;
+      f.style.transition = '';
+      setLevels(0);
+      window.updateLinks && window.updateLinks();
+    }
+    function restoreMini(mode) {
+      var f = findPanel(mode);
+      if (!f) return;
+      if (window.__anal) window.__anal('click', 'mini-restore');
+      f.classList.remove('mini');
+      f.style.width = '';
+      f.style.height = '';
+      f.style.transform = '';
+      f.style.overflow = '';
+      f.setAttribute('data-level', '1');
+      f.innerHTML = (window.__BASE_HTML && window.__BASE_HTML[mode]) || f.innerHTML;
+      var hint = document.createElement('div');
+      hint.className = 'drag-hint';
+      hint.textContent = '⣿ 拖动';
+      f.appendChild(hint);
+      setLevels(1);
+      window.updateLinks && window.updateLinks();
+    }
+    window.miniLayer = miniLayer;
+    window.restoreMini = restoreMini;
+    window.refreshMiniAll = function () {
+      fps.forEach(function (f) {
+        if (!f.classList.contains('mini')) return;
+        var m = f.getAttribute('data-mode');
+        f.innerHTML = (window.MINI && window.MINI[m] ? window.MINI[m]() : '◈ ' + m) +
+          '<div class="mini-x" onclick="event.stopPropagation();window.restoreMini(\'' + m + '\')">✕</div>';
+      });
+    };
     window.onPanelClick = function (mode) {
+      var fp = findPanel(mode);
+      if (fp && fp.classList.contains('mini')) { restoreMini(mode); return; }
       if (window.recordUse) window.recordUse(mode);
       openLayer(mode, 2);
     };
@@ -1636,6 +1744,7 @@
       { re: /游戏/, mod: 'space', reply: '空间模块已打开，游戏登录入口就在里面，先生。' },
       { re: /工作|任务|文档|文件/, mod: 'space', reply: '工作空间已就绪，先生。有 3 项任务正在进行。' },
       { re: /AI|模型|token|多模态/, mod: 'ai', reply: 'AI 模型模块已打开，先生。今日 Token 用量与架构图已更新。' },
+      { re: /天气|气温|预报|下雨|降温/, mod: 'weather', reply: '天气模块已打开，先生。当前天气与未来七天预报已更新。' },
       { re: /洞察|专注|行为|习惯/, mod: 'habit', reply: '行为洞察已开启，先生。您今日专注 6.4 小时，比昨日提升 18%。' },
       { re: /你好|您好|hi|hello|嗨|在吗/, mod: 'chat', reply: '先生，我在。随时听候差遣。' }
     ];
@@ -1748,7 +1857,7 @@
     var holo = document.getElementById('holo');
     var main = holo.querySelector('.h-main');
     var fps = Array.prototype.slice.call(document.querySelectorAll('.fp'));
-    var BASE_RANK = { chat: 7, hot: 1, ai: 2, habit: 3, media: 4, space: 5, fate: 6 };
+    var BASE_RANK = { chat: 7, hot: 1, ai: 2, habit: 3, media: 4, space: 5, fate: 6, weather: 8 };
     var freeState = null;
     function usage() {
       try { return JSON.parse(localStorage.getItem('jarvis-usage') || '{}'); } catch (e) { return {}; }
@@ -1896,7 +2005,8 @@
       var content = (level === 3 ? window.DEEP : window.DETAIL)[mode]();
       var close = '<div class="exp-close" onclick="event.stopPropagation();window.closeLayer()">✕</div>';
       var more = level === 2 ? '<div class="exp-more" onclick="event.stopPropagation();window.openLayer(\'' + mode + '\',3)">◈ 深入 · 第三层</div>' : '';
-      f.innerHTML = content + close + more;
+      var mini = '<div class="exp-mini" onclick="event.stopPropagation();window.miniLayer(\'' + mode + '\')">▁ 缩小</div>';
+      f.innerHTML = content + close + more + mini;
     }
     window.refreshOpen = refreshOpen;
 
@@ -2067,6 +2177,89 @@
       var cost = ((s.inTk || 0) * inPrice + (s.outTk || 0) * outPrice) / 1e6;
       return { msgs: s.msgs || 0, inTk: s.inTk || 0, outTk: s.outTk || 0, cost: cost };
     }
+
+    /* ---- 天气：实时预报 ---- */
+    var WMO = {
+      0: ['晴', '☀️'], 1: ['大致晴朗', '🌤️'], 2: ['多云', '⛅'], 3: ['阴', '☁️'],
+      45: ['雾', '🌫️'], 48: ['雾凇', '🌫️'], 51: ['小毛毛雨', '🌦️'], 53: ['毛毛雨', '🌧️'],
+      55: ['大毛毛雨', '🌧️'], 61: ['小雨', '🌧️'], 63: ['中雨', '🌧️'], 65: ['大雨', '🌧️'],
+      71: ['小雪', '🌨️'], 73: ['中雪', '🌨️'], 75: ['大雪', '❄️'], 77: ['雪粒', '🌨️'],
+      80: ['阵雨', '🌦️'], 81: ['强阵雨', '🌧️'], 82: ['暴雨', '⛈️'], 85: ['阵雪', '🌨️'],
+      86: ['强阵雪', '❄️'], 95: ['雷暴', '⛈️'], 96: ['雷暴伴冰雹', '⛈️'], 99: ['强雷暴伴冰雹', '⛈️']
+    };
+    function wmoInfo(code) { var w = WMO[code] || ['未知', '🌡️']; return { text: w[0], emoji: w[1] }; }
+    function loadWeather(city) {
+      if (!city) return loadWeatherIP();
+      LIVE.weatherCity = city;
+      return fetchJSON(AGENT_URL + '/api/weather?city=' + encodeURIComponent(city), 20000).then(function (d) {
+        if (d && d.ok) { LIVE.weather = d; renderWeatherBase(); refreshOpen('weather'); window.refreshMiniAll && window.refreshMiniAll(); }
+        return LIVE.weather;
+      }).catch(function () { return LIVE.weather; });
+    }
+    function loadWeatherIP() {
+      return fetchJSON(AGENT_URL + '/api/weather/ip', 20000).then(function (d) {
+        if (d && d.ok) {
+          LIVE.weather = d;
+          LIVE.weatherCity = d.city;
+          renderWeatherBase();
+          refreshOpen('weather');
+          window.refreshMiniAll && window.refreshMiniAll();
+        }
+        return LIVE.weather;
+      }).catch(function () { return LIVE.weather; });
+    }
+    function renderWeatherBase() {
+      var w = LIVE.weather;
+      if (!w || !w.current) return;
+      var t = document.getElementById('wTemp'); if (t) t.textContent = Math.round(w.current.temp) + '°';
+      var c = document.getElementById('wCity'); if (c) c.textContent = w.city + (w.country ? ' · ' + w.country : '');
+      var i = document.getElementById('wIcon'); if (i) i.textContent = w.current.emoji;
+      var d = document.getElementById('wDesc');
+      if (d) d.textContent = w.current.text + ' · 体感 ' + Math.round(w.current.feels) + '° · 湿度 ' + (w.current.humidity != null ? w.current.humidity + '%' : '--');
+    }
+    function weatherWeekday(dateStr) {
+      try {
+        var d = new Date(dateStr + 'T00:00:00');
+        var today = new Date();
+        var diff = Math.round((d - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
+        if (diff === 0) return '今天';
+        if (diff === 1) return '明天';
+        return '周' + '日一二三四五六'.charAt(d.getDay());
+      } catch (e) { return dateStr; }
+    }
+    window.DETAIL.weather = function () {
+      var w = LIVE.weather;
+      if (!w || !w.current) return '<div class="dw-block"><div class="dw-sub">天气</div><div class="dw-row">加载中…</div></div>';
+      var cur = w.current;
+      var days = (w.daily || []).slice(0, 4).map(function (d) {
+        var info = wmoInfo(d.code);
+        return '<div class="dw-row"><span class="k">' + weatherWeekday(d.date) + '</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + info.emoji + ' ' + info.text + '</span><span class="v">' + Math.round(d.tmin) + '° / ' + Math.round(d.tmax) + '°' + (d.pop != null ? ' · ☔' + d.pop + '%' : '') + '</span></div>';
+      }).join('');
+      return '<div class="dw-block"><div class="dw-sub">' + esc(w.city) + ' · 当前天气</div>' +
+        '<div class="dw-row"><span class="k">' + cur.emoji + '</span>' + cur.text + '<span class="v">' + Math.round(cur.temp) + '°</span></div>' +
+        '<div class="dw-row">体感 ' + Math.round(cur.feels) + '° · 湿度 ' + (cur.humidity != null ? cur.humidity + '%' : '--') + ' · 风速 ' + (cur.wind != null ? cur.wind + ' km/h' : '--') + '</div></div>' +
+        '<div class="dw-block"><div class="dw-sub">未来预报</div>' + days + '</div>';
+    };
+    window.DEEP.weather = function () {
+      var w = LIVE.weather;
+      if (!w || !w.current) return '<div class="deep-card"><div class="d-t">天气</div><div class="d-line">加载中…</div></div>';
+      var cur = w.current;
+      var days = (w.daily || []).map(function (d) {
+        var info = wmoInfo(d.code);
+        return '<div class="d-line">' + weatherWeekday(d.date) + ' ' + info.emoji + ' ' + info.text + ' · ' + Math.round(d.tmin) + '° ~ ' + Math.round(d.tmax) + '°' + (d.pop != null ? ' · 降水 ' + d.pop + '%' : '') + '</div>';
+      }).join('');
+      var cities = ['北京', '上海', '广州', '深圳', '成都', '杭州'];
+      var chips = cities.map(function (c) {
+        return '<span class="dw-chip" style="' + (c === (LIVE.weatherCity || w.city) ? 'outline:1px solid var(--acc1)' : '') + '" onclick="event.stopPropagation();window.__anal(\'click\',\'weather-city\');loadWeather(\'' + c + '\')">' + c + '</span>';
+      }).join('');
+      return '<div class="deep-card"><div class="d-t">' + esc(w.city) + ' · 实时天气</div>' +
+        '<div class="d-line">' + cur.emoji + ' ' + cur.text + ' · ' + Math.round(cur.temp) + '°（体感 ' + Math.round(cur.feels) + '°）</div>' +
+        '<div class="d-line">湿度 ' + (cur.humidity != null ? cur.humidity + '%' : '--') + ' · 风速 ' + (cur.wind != null ? cur.wind + ' km/h' : '--') + '</div>' +
+        '<div class="d-bar"><i style="width:' + Math.min(100, 30 + (cur.temp || 0)) + '%"></i></div></div>' +
+        '<div class="deep-card"><div class="d-t">未来 7 天预报</div>' + days + '</div>' +
+        '<div class="deep-card"><div class="d-t">城市切换</div>' + chips +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'weather-ip\');loadWeatherIP()">📍 自动定位</span></div>';
+    };
 
     /* ---- 全球热点 ---- */
     function renderHotTicker() {
@@ -2372,6 +2565,37 @@
         '<div id="divineOut" style="margin-top:8px"></div></div>';
     };
 
+    /* ---- 迷你状态层（缩小后仅保留关键信息） ---- */
+    window.MINI = window.MINI || {};
+    window.MINI.chat = function () { return '◉ 核心在线 · 随时待命'; };
+    window.MINI.hot = function () {
+      var it = LIVE.hot[0] || ((LIVE.cnHot.weibo || [])[0]) || null;
+      return it ? '◎ ' + esc(it.title).slice(0, 16) : '◎ 热点加载中';
+    };
+    window.MINI.ai = function () {
+      var ts = tokenStats();
+      return '◈ Token ' + fmtNum(ts.inTk + ts.outTk) + ' · 模型 ' + (LIVE.models.length || '--');
+    };
+    window.MINI.habit = function () {
+      var d = habitData();
+      var a = habitAnalytics();
+      return '▤ 专注 ' + hms(d.todaySec) + ' · 点击 ' + Object.values(a.clicks).reduce(function (s, v) { return s + v; }, 0);
+    };
+    window.MINI.media = function () {
+      return LIVE.bili.length ? '▶ B站热榜 ' + LIVE.bili.length + ' · 电台在线' : '▶ 电台在线 · 账号直通';
+    };
+    window.MINI.space = function () {
+      return '▣ 应用 ' + LIVE.apps.length + ' · 文件 ' + LIVE.repo.length;
+    };
+    window.MINI.fate = function () {
+      var f = dailyFortune();
+      return '☯ ' + f.hexName + ' · 运势 ' + f.luck;
+    };
+    window.MINI.weather = function () {
+      var w = LIVE.weather;
+      return w && w.current ? '⛅ ' + w.city + ' ' + Math.round(w.current.temp) + '° ' + w.current.text : '⛅ 天气加载中';
+    };
+
     /* ---- 对话：快捷指令 ---- */
     window.DETAIL.chat = function () {
       return '<div class="dw-block"><div class="dw-sub">快捷指令</div>' +
@@ -2380,7 +2604,8 @@
         '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-media\');window.jarvis.modules.open(\'media\')">播放电台</span>' +
         '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-habit\');window.jarvis.modules.open(\'habit\')">行为分析</span>' +
         '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-ai\');window.jarvis.modules.open(\'ai\')">模型前沿</span>' +
-        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-space\');window.jarvis.modules.open(\'space\')">启动应用</span></div>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-space\');window.jarvis.modules.open(\'space\')">启动应用</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-weather\');window.jarvis.modules.open(\'weather\')">天气预报</span></div>' +
         '<div class="dw-block"><div class="dw-sub">语音与音色</div>' +
         '<span class="dw-chip" onclick="event.stopPropagation();window.jarvis.previewVoice()">音色试听</span>' +
         '<span class="dw-chip" onclick="event.stopPropagation();window.jarvis.modules.open(\'chat\');setTimeout(function(){window.openLayer(\'chat\',3)},100)">进入对话</span></div>';
@@ -2394,7 +2619,8 @@
         '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-fate\');window.jarvis.modules.open(\'fate\')">运势</span>' +
         '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-media\');window.jarvis.modules.open(\'media\')">电台</span>' +
         '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-ai\');window.jarvis.modules.open(\'ai\')">模型</span>' +
-        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-space\');window.jarvis.modules.open(\'space\')">应用</span></div>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-space\');window.jarvis.modules.open(\'space\')">应用</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-weather\');window.jarvis.modules.open(\'weather\')">天气</span></div>' +
         '<div class="cc-hint">▸ 在底部指令栏输入，指令直达智能体核心；回复中的模块指令会自动执行。</div>' +
         '<div style="margin-top:8px;padding:8px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(255,255,255,.03)">' +
         '<div class="dw-sub" style="margin-bottom:6px">贾维斯音色</div>' +
@@ -2436,12 +2662,15 @@
     loadModels();
     loadApps();
     loadRepoTree();
+    loadWeatherIP();
     renderHabit();
     setTimeout(loadHot, 900);
     setInterval(loadHot, 60000);
     setInterval(loadAi, 600000);
     setInterval(loadBili, 300000);
+    setInterval(loadWeatherIP, 600000);
     setInterval(renderHabit, 30000);
+    setInterval(function () { window.refreshMiniAll && window.refreshMiniAll(); }, 30000);
     window.addEventListener('scroll', function () {
       if (window.__anal) window.__anal('scroll');
     }, { passive: true });
@@ -2604,11 +2833,47 @@
 
     var clouds = null;
     var loader = new THREE.TextureLoader();
+    var liveReady = false;
     loader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg', function (tex) {
-      earthMat.map = tex;
-      earthMat.color.set(0xffffff);
-      earthMat.needsUpdate = true;
+      if (!liveReady) {
+        earthMat.map = tex;
+        earthMat.color.set(0xffffff);
+        earthMat.needsUpdate = true;
+      }
     }, undefined, function () {});
+    function gibsDate() {
+      var d = new Date();
+      return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+    }
+    function loadLiveEarth() {
+      var c = document.createElement('canvas');
+      c.width = 1024; c.height = 512;
+      var ctx = c.getContext('2d');
+      var done = 0, fail = 0;
+      var T = gibsDate();
+      for (var x = 0; x < 2; x++) {
+        (function (col) {
+          var img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = function () {
+            try { ctx.drawImage(img, col * 512, 0, 512, 512); } catch (e) {}
+            done++;
+            if (done === 2 && fail === 0) {
+              liveReady = true;
+              var tex = new THREE.CanvasTexture(c);
+              tex.anisotropy = 4;
+              earthMat.map = tex;
+              earthMat.color.set(0xffffff);
+              earthMat.needsUpdate = true;
+            }
+          };
+          img.onerror = function () { fail++; done++; };
+          img.src = 'https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/' + T + '/250m/0/0/' + col + '.jpeg';
+        })(x);
+      }
+    }
+    loadLiveEarth();
+    setInterval(function () { try { loadLiveEarth(); } catch (e) {} }, 3 * 3600 * 1000);
     loader.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png', function (tex) {
       clouds = new THREE.Mesh(
         new THREE.SphereGeometry(1.015, 48, 48),
@@ -2616,6 +2881,8 @@
       );
       scene.add(clouds);
     }, undefined, function () {});
+    var tag = document.getElementById('earthTag');
+    if (tag) tag.textContent = 'LIVE EARTH · NASA SATELLITE';
 
     var glowMat = new THREE.ShaderMaterial({
       uniforms: { c: { value: new THREE.Color(0x7ce7ff) } },

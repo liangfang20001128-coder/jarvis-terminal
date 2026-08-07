@@ -21,7 +21,7 @@ const CODEX_BIN =
   process.env.CODEX_BIN ||
   "/Applications/ChatGPT.app/Contents/Resources/codex";
 
-const MODULES = ["chat", "hot", "ai", "habit", "media", "space", "fate"];
+const MODULES = ["chat", "hot", "ai", "habit", "media", "space", "fate", "weather"];
 
 const SYSTEM_PROMPT = `你是「贾维斯」，钢铁侠的智能管家，运行在用户的全息终端里。
 语言：中文。风格：简洁、机敏、带一点从容的幽默。称呼用户为「先生」。
@@ -330,6 +330,96 @@ async function getGitHubActivity() {
   }
 }
 
+const WMO = {
+  0: ["晴", "☀️"], 1: ["大致晴朗", "🌤️"], 2: ["多云", "⛅"], 3: ["阴", "☁️"],
+  45: ["雾", "🌫️"], 48: ["雾凇", "🌫️"],
+  51: ["小毛毛雨", "🌦️"], 53: ["毛毛雨", "🌧️"], 55: ["大毛毛雨", "🌧️"],
+  61: ["小雨", "🌧️"], 63: ["中雨", "🌧️"], 65: ["大雨", "🌧️"],
+  71: ["小雪", "🌨️"], 73: ["中雪", "🌨️"], 75: ["大雪", "❄️"], 77: ["雪粒", "🌨️"],
+  80: ["阵雨", "🌦️"], 81: ["强阵雨", "🌧️"], 82: ["暴雨", "⛈️"],
+  85: ["阵雪", "🌨️"], 86: ["强阵雪", "❄️"],
+  95: ["雷暴", "⛈️"], 96: ["雷暴伴冰雹", "⛈️"], 99: ["强雷暴伴冰雹", "⛈️"],
+};
+function wmoInfo(code) {
+  const w = WMO[code] || ["未知", "🌡️"];
+  return { code, text: w[0], emoji: w[1] };
+}
+
+const weatherCache = { at: 0, key: "", data: null };
+async function getWeather(city, lat, lon) {
+  const key = `${city}|${lat || ""}|${lon || ""}`;
+  if (weatherCache.data && weatherCache.key === key && Date.now() - weatherCache.at < 600000) {
+    return weatherCache.data;
+  }
+  let coords = { lat, lon };
+  let country = "";
+  if (!lat || !lon) {
+    try {
+      const g = await cachedFetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=zh`,
+        { ttl: 86400000 }
+      );
+      const r = (g.results || [])[0];
+      if (r) {
+        coords = { lat: r.latitude, lon: r.longitude };
+        country = r.country || "";
+      } else {
+        coords = { lat: 39.9075, lon: 116.39723 };
+        country = "中国";
+      }
+    } catch (e) {
+      coords = { lat: 39.9075, lon: 116.39723 };
+      country = "中国";
+    }
+  }
+  const f = await cachedFetch(
+    `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}` +
+      `&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m` +
+      `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
+      `&timezone=auto&forecast_days=7`,
+    { ttl: 600000 }
+  );
+  const cur = f.current || {};
+  const daily = f.daily || {};
+  const days = ((daily.time) || []).map((d, i) => ({
+    date: d,
+    ...wmoInfo((daily.weather_code || [])[i]),
+    tmax: (daily.temperature_2m_max || [])[i],
+    tmin: (daily.temperature_2m_min || [])[i],
+    pop: (daily.precipitation_probability_max || [])[i],
+  }));
+  const data = {
+    city,
+    country,
+    lat: coords.lat,
+    lon: coords.lon,
+    current: {
+      temp: cur.temperature_2m,
+      feels: cur.apparent_temperature,
+      humidity: cur.relative_humidity_2m,
+      wind: cur.wind_speed_10m,
+      ...wmoInfo(cur.weather_code),
+    },
+    daily: days,
+    fallback: false,
+  };
+  weatherCache.data = data;
+  weatherCache.key = key;
+  weatherCache.at = Date.now();
+  return data;
+}
+
+async function getWeatherByIP() {
+  try {
+    const j = await cachedFetch("https://ipwho.is/", { ttl: 3600000 });
+    if (j && j.success && j.city && j.latitude && j.longitude) {
+      const w = await getWeather(j.city, j.latitude, j.longitude);
+      return w;
+    }
+  } catch (e) { /* fallthrough */ }
+  return getWeather("北京");
+}
+
 async function getRepoTree() {
   try {
     const j = await cachedFetch(`https://api.github.com/repos/${GITHUB_USER}/jarvis-terminal/git/trees/main?recursive=1`, {
@@ -506,6 +596,7 @@ function fallbackReply(text) {
     { re: /游戏/, mod: "space", reply: "空间模块已打开，游戏登录入口就在里面，先生。" },
     { re: /工作|任务|文档|文件/, mod: "space", reply: "工作空间已就绪，先生。有 3 项任务正在进行。" },
     { re: /AI|模型|token|多模态/, mod: "ai", reply: "AI 模型模块已打开，先生。今日 Token 用量与架构图已更新。" },
+    { re: /天气|气温|预报|下雨|降温/, mod: "weather", reply: "天气模块已打开，先生。当前天气与未来七天预报已更新。" },
     { re: /洞察|专注|行为|习惯/, mod: "habit", reply: "行为洞察已开启，先生。您今日专注 6.4 小时，比昨日提升 18%。" },
     { re: /你好|您好|hi|hello|嗨|在吗/, mod: "chat", reply: "先生，我在。随时听候差遣。" },
   ];
@@ -691,6 +782,21 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true, ...(await getModelCatalog()) });
     } catch (e) {
       return json(res, 200, { ok: false, error: String(e.message || e), models: [] });
+    }
+  }
+  if (url.pathname === "/api/weather") {
+    try {
+      const city = url.searchParams.get("city") || "北京";
+      return json(res, 200, { ok: true, ...(await getWeather(city)) });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: String(e.message || e) });
+    }
+  }
+  if (url.pathname === "/api/weather/ip") {
+    try {
+      return json(res, 200, { ok: true, ...(await getWeatherByIP()) });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: String(e.message || e) });
     }
   }
   if (url.pathname === "/api/github/activity") {
