@@ -181,27 +181,25 @@
     border: 1px solid rgba(255,255,255,.16);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 24px 50px rgba(0,0,0,.45);
     overflow: hidden;
-    transform: rotateX(5deg) rotateY(-7deg) translateZ(0);
+    transform: translateZ(0);
     transition: transform .5s cubic-bezier(.2,.8,.2,1), box-shadow .5s, opacity .5s;
   }
   .fp::before { content: ""; position: absolute; top: 0; left: 8%; right: 8%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent); }
   .fp::after { content: ""; position: absolute; inset: -1px; border-radius: 18px; pointer-events: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc1) 12%, transparent); }
-  .fp .lab { font-size: 9px; letter-spacing: 2.5px; color: color-mix(in srgb, var(--acc1) 85%, transparent); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .fp .lab { font-size: 10px; letter-spacing: 2.5px; color: color-mix(in srgb, var(--acc1) 85%, transparent); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
   .fp .lab::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--acc1); box-shadow: 0 0 8px var(--acc1); }
   .fp.lit {
     transform: rotateX(0) rotateY(0) translateZ(20px) scale(var(--ls, 1.045));
     box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 0 0 1px color-mix(in srgb, var(--acc1) 55%, transparent), 0 0 52px color-mix(in srgb, var(--acc1) 45%, transparent), 0 30px 60px rgba(0,0,0,.5);
   }
-  .holo.auto-layout .fp {
-    transform: translateZ(0);
-  }
-  .fp-hot   { top: 2%; right: 7%; width: 31%; transform-origin: right center; }
-  .fp-ai    { top: 27%; right: 8%; width: 33%; transform-origin: right center; }
-  .fp-fate  { bottom: 4%; right: 12%; width: 30%; transform-origin: right bottom; }
-  .fp-habit { top: 33%; left: 4%; width: 18%; transform-origin: left center; }
-  .fp-media { top: 4%; left: 5%; width: 17%; transform-origin: left center; }
+  .fp-hot   { top: 3%; right: 8%; width: 29%; transform-origin: right center; }
+  .fp-ai    { top: 34%; right: 8%; width: 30%; transform-origin: right center; }
+  .fp-fate  { bottom: 4%; right: 11%; width: 28%; transform-origin: right bottom; }
+  .fp-habit { top: 34%; left: 4%; width: 18%; transform-origin: left center; }
+  .fp-media { top: 4%; left: 4%; width: 17%; transform-origin: left center; }
   .fp-space { bottom: 6%; left: 3%; width: 20%; transform-origin: left bottom; }
-  .fp-weather { bottom: 6%; left: 38%; width: 26%; transform-origin: center bottom; }
+  .fp-chat  { top: 3%; left: 34%; width: 24%; transform-origin: center top; }
+  .fp-weather { bottom: 5%; left: 31%; width: 25%; transform-origin: center bottom; }
   .fp .lab { padding-left: 34px; }
   .fp.expanded { padding-top: 34px; }
   .win-bar {
@@ -219,6 +217,8 @@
     border-radius: 50%;
     cursor: pointer;
     position: relative;
+    border: none;
+    padding: 0;
     box-shadow: inset 0 -1px 1px rgba(0,0,0,.25);
     transition: transform .15s, filter .15s;
   }
@@ -244,15 +244,16 @@
     font-size: 10px;
     letter-spacing: .5px;
     color: color-mix(in srgb, var(--txt) 88%, transparent);
-    background: rgba(255,255,255,.08);
-    border: 1px solid rgba(255,255,255,.16);
+    background: linear-gradient(160deg, rgba(255,255,255,.16), rgba(255,255,255,.05));
+    border: 1px solid rgba(255,255,255,.22);
     border-radius: 999px;
     padding: 6px 13px;
     cursor: pointer;
     -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(18px) saturate(160%);
     max-width: 230px;
     transition: all .2s;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 8px 20px rgba(0,0,0,.35);
   }
   .md-pill:hover {
     border-color: var(--acc1);
@@ -517,7 +518,7 @@
   }
   .dw-x:hover { color: var(--acc1); border-color: color-mix(in srgb, var(--acc1) 50%, transparent); }
   .dw-block { margin-bottom: 12px; }
-  .dw-sub { font-size: 9px; letter-spacing: 2px; color: color-mix(in srgb, var(--acc1) 80%, transparent); margin-bottom: 7px; }
+  .dw-sub { font-size: 9.5px; letter-spacing: 2px; color: color-mix(in srgb, var(--acc1) 80%, transparent); margin-bottom: 7px; }
   .dw-row {
     display: flex; align-items: center; gap: 8px;
     font-size: 10.5px; color: color-mix(in srgb, var(--txt) 82%, transparent);
@@ -574,7 +575,7 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.2);
   }
   .deep-card .d-t { font-size: 10px; letter-spacing: 2px; color: color-mix(in srgb, var(--acc1) 85%, transparent); margin-bottom: 8px; }
-  .deep-card .d-line { font-size: 10.5px; color: color-mix(in srgb, var(--txt) 82%, transparent); margin-bottom: 6px; line-height: 1.65; }
+  .deep-card .d-line { font-size: 11px; color: color-mix(in srgb, var(--txt) 82%, transparent); margin-bottom: 6px; line-height: 1.65; }
   .deep-card .d-bar { height: 6px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; margin: 4px 0 8px; }
   .deep-card .d-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--acc2), var(--acc1), var(--mag)); }
   .deep-back {
@@ -689,7 +690,6 @@
   .fp.mini .mini-x:hover { color: var(--acc1); }
 
   /* ==== chat console + command input ==== */
-  .fp-chat { top: 2%; left: 35%; width: 22%; transform-origin: center; }
   .cmd-input {
     flex: 1;
     min-width: 0;
@@ -1408,12 +1408,13 @@
       bar.className = 'win-bar';
       bar.setAttribute('onpointerdown', 'event.stopPropagation()');
       bar.setAttribute('onclick', 'event.stopPropagation()');
-      bar.innerHTML = '<i class="wb wb-close" title="关闭"></i><i class="wb wb-min" title="最小化到状态栏"></i><i class="wb wb-zoom" title="展开详情"></i>';
+      bar.innerHTML = '<button class="wb wb-close" type="button" aria-label="关闭/收起" title="关闭/收起"></button>' +
+        '<button class="wb wb-min" type="button" aria-label="最小化到状态栏" title="最小化到状态栏"></button>' +
+        '<button class="wb wb-zoom" type="button" aria-label="展开/深入" title="展开 / 深入"></button>';
       bar.querySelector('.wb-close').addEventListener('click', function (e) {
         e.stopPropagation();
         window.__anal && window.__anal('click', 'win-close-' + mode);
         if (f.classList.contains('expanded')) window.closeLayer();
-        else window.miniLayer(mode);
       });
       bar.querySelector('.wb-min').addEventListener('click', function (e) {
         e.stopPropagation();
@@ -1423,8 +1424,10 @@
       bar.querySelector('.wb-zoom').addEventListener('click', function (e) {
         e.stopPropagation();
         window.__anal && window.__anal('click', 'win-zoom-' + mode);
-        if (f.classList.contains('expanded')) window.closeLayer();
-        else window.openLayer(mode, 2);
+        var lv = parseInt(f.getAttribute('data-level') || '1', 10);
+        if (!f.classList.contains('expanded')) window.openLayer(mode, 2);
+        else if (lv === 2) window.openLayer(mode, 3);
+        else window.closeLayer();
       });
       f.appendChild(bar);
     };
@@ -1492,6 +1495,33 @@
       });
       if (window.updateLinks) window.updateLinks();
     }
+    function scatterFree() {
+      var raw = null;
+      try { raw = JSON.parse(localStorage.getItem('jarvis-panel-pos') || 'null'); } catch (e) {}
+      if (raw) return;
+      if (holo.classList.contains('auto-layout')) return;
+      var mr = main.getBoundingClientRect();
+      if (!mr.width) return;
+      var gap = 16, padX = 22, padTop = 24;
+      var cols = [['media', 'habit', 'space'], ['chat', 'weather'], ['hot', 'ai', 'fate']];
+      var colW = (mr.width - padX * 2 - gap * 2) / 3;
+      var cursors = [padTop, padTop + 70, padTop];
+      cols.forEach(function (col, ci) {
+        col.forEach(function (m) {
+          var f = null;
+          fps.forEach(function (p) { if (p.getAttribute('data-mode') === m) f = p; });
+          if (!f) return;
+          f.style.left = (padX + ci * (colW + gap)) + 'px';
+          f.style.width = colW + 'px';
+          f.style.height = '';
+          f.style.top = cursors[ci] + 'px';
+          cursors[ci] += f.offsetHeight + gap;
+        });
+      });
+      if (window.updateLinks) window.updateLinks();
+    }
+    window.loadPositions = loadPositions;
+    window.scatterFree = scatterFree;
 
     /* ==== apple-style in-place expand ==== */
     function setLevelsAll(lv) {
@@ -1588,6 +1618,7 @@
     });
     setLevelsAll(1);
     setTimeout(loadPositions, 500);
+    setTimeout(function () { if (window.scatterFree) window.scatterFree(); }, 700);
   })();
 </script>
 
@@ -1649,13 +1680,11 @@
       var targetW = level === 3 ? Math.min(mr.width * 0.9, 980) : Math.min(mr.width * 0.64, 660);
       var targetH = level === 3 ? Math.min(mr.height * 0.9, 640) : Math.min(mr.height * 0.74, 460);
       var content = (level === 3 ? window.DEEP : window.DETAIL)[mode]();
-      var more = level === 2 ? '<div class="exp-more" onclick="event.stopPropagation();window.openLayer(\'' + mode + '\',3)">◈ 深入 · 第三层</div>' : '';
-      var close = '<div class="exp-close" onclick="event.stopPropagation();window.closeLayer()">✕</div>';
       var sx = cw / targetW, sy = ch / targetH;
       f.style.transition = 'none';
       f.style.width = targetW + 'px';
       f.style.height = targetH + 'px';
-      f.innerHTML = content + close + more;
+      f.innerHTML = content;
       f.style.transformOrigin = 'center center';
       f.style.transform =
         'translate(' + (cx - (f.offsetLeft + targetW / 2)) + 'px,' + (cy - (f.offsetTop + targetH / 2)) + 'px) scale(' + sx + ',' + sy + ')';
@@ -1664,6 +1693,7 @@
       f.classList.add('expanded', level === 3 ? 'expanded-3' : 'expanded-2');
       f.setAttribute('data-level', level);
       window.injectWinBar && window.injectWinBar(f);
+      setTimeout(function () { if (window.lazyLoad) window.lazyLoad(mode); }, 0);
       if (window.__track) window.__track(mode, 'open');
       holo.classList.add('layers-open');
       fps.forEach(function (p) { p.classList.toggle('dim', p !== f); });
@@ -1820,22 +1850,23 @@
     }
     function setAgentBadge(mode) {
       if (!statusChip || !statusText) return;
+      var h = window.__healthState === 'bad' ? ' · 数据降级' : (window.__healthState === 'ok' ? ' · 数据在线' : '');
       if (mode === 'codex') {
         statusChip.style.background = '#3ef5a6';
         statusChip.style.boxShadow = '0 0 9px #3ef5a6';
-        if (statusLabel) statusLabel.textContent = ' Codex 核心在线';
+        if (statusLabel) statusLabel.textContent = ' Codex 核心在线' + h;
       } else if (mode === 'deepseek') {
         statusChip.style.background = '#4da3ff';
         statusChip.style.boxShadow = '0 0 9px #4da3ff';
-        if (statusLabel) statusLabel.textContent = ' DeepSeek 云端在线';
+        if (statusLabel) statusLabel.textContent = ' DeepSeek 云端在线' + h;
       } else if (mode === 'openai') {
         statusChip.style.background = '#c3f04d';
         statusChip.style.boxShadow = '0 0 9px #c3f04d';
-        if (statusLabel) statusLabel.textContent = ' OpenAI 云端在线';
+        if (statusLabel) statusLabel.textContent = ' OpenAI 云端在线' + h;
       } else {
         statusChip.style.background = '#ffc47c';
         statusChip.style.boxShadow = '0 0 9px #ffc47c';
-        if (statusLabel) statusLabel.textContent = ' 演示模式';
+        if (statusLabel) statusLabel.textContent = ' 演示模式' + h;
       }
     }
     fetch(AGENT_URL + '/api/status', { cache: 'no-store' })
@@ -1848,6 +1879,15 @@
         window.__agent = 'offline';
         setAgentBadge('fallback');
       });
+    fetch(AGENT_URL + '/api/health', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var hh = (d && d.health) || {};
+        var bad = (hh.hot && hh.hot.stale) && (hh.weather && hh.weather.stale);
+        window.__healthState = bad ? 'bad' : 'ok';
+        setAgentBadge(window.__agent || 'fallback');
+      })
+      .catch(function () { window.__healthState = 'bad'; setAgentBadge(window.__agent || 'fallback'); });
 
     var FALLBACK = [
       { re: /运势|卦|玄学|农历|老黄历/, mod: 'fate', reply: '时运模块已开启：农历、今日卦象与运势都已就绪，先生。' },
@@ -1899,35 +1939,58 @@
       if (input) input.value = '';
       ensureChatOpen();
       appendMsg(text, 'user');
-      fetch(AGENT_URL + '/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text })
-      })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          if (!d || !d.ok) throw new Error('bad response');
-          window.__agent = d.agent || window.__agent;
-          setAgentBadge(window.__agent);
-          var el = appendMsg('', 'bot');
-          typewrite(el, d.reply || '…', function () {
-            if (d.mod && d.mod !== 'chat') window.jarvis.modules.open(d.mod);
-            if (window.jarvis.speak) window.jarvis.speak(d.reply || '');
-            if (window.jarvis.trackTokens) {
-              window.jarvis.trackTokens('in', text.length);
-              window.jarvis.trackTokens('out', (d.reply || '').length);
-            }
-          });
+      var loading = appendMsg('思考中…', 'bot');
+      var attempts = 0;
+      function doSend() {
+        var ctrl = new AbortController();
+        var timer = setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 45000);
+        fetch(AGENT_URL + '/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text }),
+          signal: ctrl.signal
         })
-        .catch(function () {
-          var r = localReply(text);
-          var el = appendMsg('', 'bot');
-          typewrite(el, r.reply + '（智能体离线，已用本地路由）', function () {
-            if (r.mod && r.mod !== 'chat') window.jarvis.modules.open(r.mod);
-            if (window.jarvis.speak) window.jarvis.speak(r.reply);
-            if (window.jarvis.sayEN) window.jarvis.sayEN('notcatch');
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            clearTimeout(timer);
+            if (!d || !d.ok) throw new Error('bad response');
+            window.__agent = d.agent || window.__agent;
+            setAgentBadge(window.__agent);
+            if (loading) loading.remove();
+            var el = appendMsg('', 'bot');
+            typewrite(el, d.reply || '…', function () {
+              if (d.mod && d.mod !== 'chat') window.jarvis.modules.open(d.mod);
+              if (window.jarvis.speak) window.jarvis.speak(d.reply || '');
+              if (window.jarvis.trackTokens) {
+                if (d.usage && d.usage.prompt_tokens != null) {
+                  window.jarvis.trackTokens('in', d.usage.prompt_tokens, true, d.agent);
+                  window.jarvis.trackTokens('out', d.usage.completion_tokens || 0, true, d.agent);
+                } else {
+                  window.jarvis.trackTokens('in', text.length, false, d.agent);
+                  window.jarvis.trackTokens('out', (d.reply || '').length, false, d.agent);
+                }
+              }
+            });
+          })
+          .catch(function () {
+            clearTimeout(timer);
+            attempts++;
+            if (attempts < 2) {
+              if (loading) loading.textContent = '响应超时，正在重试…';
+              doSend();
+              return;
+            }
+            var r = localReply(text);
+            if (loading) loading.remove();
+            var el = appendMsg('', 'bot');
+            typewrite(el, r.reply + '（智能体响应超时，已用本地路由）', function () {
+              if (r.mod && r.mod !== 'chat') window.jarvis.modules.open(r.mod);
+              if (window.jarvis.speak) window.jarvis.speak(r.reply);
+              if (window.jarvis.sayEN) window.jarvis.sayEN('notcatch');
+            });
           });
-        });
+      }
+      doSend();
     }
     var input = document.getElementById('cmdInput');
     if (input) {
@@ -2051,6 +2114,12 @@
         });
         if (btn) btn.textContent = '✦ 自动排版';
       }
+      if (!on) {
+        var had = false;
+        try { had = !!JSON.parse(localStorage.getItem('jarvis-panel-pos') || 'null'); } catch (e) {}
+        if (had && window.loadPositions) window.loadPositions();
+        else if (window.scatterFree) window.scatterFree();
+      }
       if (window.updateLinks) window.updateLinks();
       try { localStorage.setItem('jarvis-layout', on ? 'auto' : 'free'); } catch (e) {}
     }
@@ -2061,7 +2130,7 @@
       if (holo.classList.contains('auto-layout')) setAuto(true);
     });
     try {
-      if (localStorage.getItem('jarvis-layout') !== 'free') {
+      if (localStorage.getItem('jarvis-layout') === 'auto') {
         setTimeout(function () { setAuto(true); }, 400);
       }
     } catch (e) {}
@@ -2072,7 +2141,7 @@
   (function () {
     /* ==== 实时真实数据与功能 ==== */
     var AGENT_URL = window.JARVIS_AGENT_URL || 'http://127.0.0.1:8787';
-    var LIVE = { hot: [], ai: null, space: [], cnHot: {}, cnFallback: {}, bili: [], biliFallback: false, models: [], modelsFallback: false, apps: [], localOnly: false, repo: [], repoFallback: false, gh: null, search: [] };
+    var LIVE = { hot: [], ai: null, space: [], cnHot: {}, cnFallback: {}, bili: [], biliFallback: false, models: [], modelsFallback: false, apps: [], localOnly: false, repo: [], repoFallback: false, gh: null, search: [], archive: [], radioUrl: 'https://ice2.somafm.com/secretagent-128-mp3', biliPlay: '' };
     var DEMO_DETAIL = {}, DEMO_DEEP = {};
     Object.keys(window.DETAIL || {}).forEach(function (k) { DEMO_DETAIL[k] = window.DETAIL[k]; });
     Object.keys(window.DEEP || {}).forEach(function (k) { DEMO_DEEP[k] = window.DEEP[k]; });
@@ -2116,19 +2185,18 @@
       if (!f) return;
       var level = parseInt(f.getAttribute('data-level') || '2', 10);
       var content = (level === 3 ? window.DEEP : window.DETAIL)[mode]();
-      var close = '<div class="exp-close" onclick="event.stopPropagation();window.closeLayer()">✕</div>';
-      var more = level === 2 ? '<div class="exp-more" onclick="event.stopPropagation();window.openLayer(\'' + mode + '\',3)">◈ 深入 · 第三层</div>' : '';
-      f.innerHTML = content + close + more;
+      f.innerHTML = content;
       window.injectWinBar && window.injectWinBar(f);
     }
     window.refreshOpen = refreshOpen;
 
     /* ---- 中国社交热点 ---- */
     function loadChinaHot(src) {
-      if (LIVE.cnHot[src]) return Promise.resolve(LIVE.cnHot[src]);
+      if (LIVE.cnHot[src] && Date.now() - (LIVE.cnHotAt[src] || 0) < 180000) return Promise.resolve(LIVE.cnHot[src]);
       return fetchJSON(AGENT_URL + '/api/hot?cn=1&src=' + src, 15000).then(function (d) {
         if (d && d.ok && d.items && d.items.length) {
           LIVE.cnHot[src] = d.items;
+          LIVE.cnHotAt[src] = Date.now();
           LIVE.cnFallback[src] = !!d.fallback;
           refreshOpen('hot');
         }
@@ -2144,10 +2212,11 @@
 
     /* ---- B站热榜 ---- */
     function loadBili() {
-      if (LIVE.bili.length) return Promise.resolve(LIVE.bili);
+      if (LIVE.bili.length && Date.now() - (LIVE.biliAt || 0) < 300000) return Promise.resolve(LIVE.bili);
       return fetchJSON(AGENT_URL + '/api/bili/hot', 15000).then(function (d) {
         if (d && d.ok && d.items && d.items.length) {
           LIVE.bili = d.items;
+          LIVE.biliAt = Date.now();
           LIVE.biliFallback = !!d.fallback;
           refreshOpen('media');
         }
@@ -2160,13 +2229,36 @@
       LIVE.biliPlay = bvid;
       refreshOpen('media');
     };
+    var RADIO = [
+      { name: 'Secret Agent', url: 'https://ice2.somafm.com/secretagent-128-mp3' },
+      { name: 'Groove Salad', url: 'https://ice1.somafm.com/groovesalad-128-mp3' },
+      { name: 'Drone Zone', url: 'https://ice2.somafm.com/dronezone-128-mp3' },
+      { name: 'DEF CON Radio', url: 'https://ice2.somafm.com/defcon-128-mp3' },
+      { name: 'Indie Pop Rocks', url: 'https://ice1.somafm.com/indiepop-128-mp3' }
+    ];
+    window.setRadio = function (url) {
+      window.__anal('click', 'media-radio');
+      LIVE.radioUrl = url;
+      refreshOpen('media');
+      var a = document.getElementById('radioPlayer');
+      if (a) { a.src = url; a.play().catch(function () {}); }
+    };
+    function loadArchive(q) {
+      if (!q || !q.trim()) { LIVE.archive = []; refreshOpen('media'); return; }
+      return fetchJSON(AGENT_URL + '/api/media/search?q=' + encodeURIComponent(q.trim()), 15000).then(function (d) {
+        LIVE.archive = (d && d.ok && d.items) || [];
+        refreshOpen('media');
+      }).catch(function () { LIVE.archive = []; refreshOpen('media'); });
+    }
+    window.loadArchive = loadArchive;
 
     /* ---- 模型目录 ---- */
     function loadModels() {
-      if (LIVE.models.length) return Promise.resolve(LIVE.models);
+      if (LIVE.models.length && Date.now() - (LIVE.modelsAt || 0) < 21600000) return Promise.resolve(LIVE.models);
       return fetchJSON(AGENT_URL + '/api/models', 15000).then(function (d) {
         if (d && d.ok && d.models && d.models.length) {
           LIVE.models = d.models;
+          LIVE.modelsAt = Date.now();
           LIVE.modelsFallback = !!d.fallback;
           refreshOpen('ai');
         }
@@ -2195,14 +2287,25 @@
         return LIVE.repo;
       }).catch(function () { return LIVE.repo; });
     }
+    var searchTimer = null;
+    var searchCtrl = null;
     function loadSearch(q) {
+      clearTimeout(searchTimer);
+      if (searchCtrl) { try { searchCtrl.abort(); } catch (e) {} }
       var input = document.getElementById('spSearch');
       if (input) input.value = q;
       if (!q) { LIVE.search = []; refreshOpen('space'); return; }
-      return fetchJSON(AGENT_URL + '/api/workspace/search?q=' + encodeURIComponent(q), 10000).then(function (d) {
-        LIVE.search = (d && d.ok && d.files) || [];
-        refreshOpen('space');
-      }).catch(function () { LIVE.search = []; refreshOpen('space'); });
+      searchTimer = setTimeout(function () {
+        searchCtrl = new AbortController();
+        fetch(AGENT_URL + '/api/workspace/search?q=' + encodeURIComponent(q), { cache: 'no-store', signal: searchCtrl.signal })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (searchCtrl && searchCtrl.signal.aborted) return;
+            LIVE.search = (d && d.ok && d.files) || [];
+            refreshOpen('space');
+          })
+          .catch(function () { if (searchCtrl && !searchCtrl.signal.aborted) { LIVE.search = []; refreshOpen('space'); } });
+      }, 300);
     }
     window.loadSearch = loadSearch;
     window.jarvis = window.jarvis || {};
@@ -2216,10 +2319,10 @@
     /* ---- 时运：每日玄学（lunar-javascript 离线计算） ---- */
     function dailyFortune() {
       var today = new Date();
-      var key = 'jarvis-fate-' + today.getFullYear() + '-' + (today.getMonth() + 1) + '-' + today.getDate();
-      try { var c = JSON.parse(localStorage.getItem(key)); if (c) return c; } catch (e) {}
+      var key = 'jarvis-fate';
+      try { var c = JSON.parse(localStorage.getItem(key)); if (c && c.date === today.toDateString()) return c; } catch (e) {}
       var L = window.Lunar || {};
-      var out = { lunar: '', ganzhi: '', yi: [], ji: [], hexName: '水火既济', luck: 60, tip: '' };
+      var out = { date: today.toDateString(), lunar: '', ganzhi: '', yi: [], ji: [], hexName: '水火既济', luck: 60, tip: '' };
       try {
         var solar = (window.Solar && window.Solar.fromDate) ? window.Solar.fromDate(today) : null;
         var lunar = solar ? solar.getLunar() : (L.fromDate ? L.fromDate(today) : null);
@@ -2272,14 +2375,20 @@
     }
 
     /* ---- Token 用量 ---- */
-    window.jarvis.trackTokens = function (kind, chars) {
+    window.jarvis.trackTokens = function (kind, val, isTokens, agent) {
       var s = {};
       try { s = JSON.parse(localStorage.getItem('jarvis-tokens') || '{}'); } catch (e) {}
       var day = new Date().toISOString().slice(0, 10);
-      if (s.day !== day) s = { day: day, msgs: 0, inTk: 0, outTk: 0 };
-      var tk = Math.max(1, Math.round((chars || 0) / 1.5));
+      if (s.day !== day) s = { day: day, msgs: 0, inTk: 0, outTk: 0, paidIn: 0, paidOut: 0 };
+      var tk = isTokens ? Math.max(0, Math.round(val || 0)) : Math.max(1, Math.round((val || 0) / 1.5));
       s.msgs = (s.msgs || 0) + 1;
-      if (kind === 'in') s.inTk = (s.inTk || 0) + tk; else s.outTk = (s.outTk || 0) + tk;
+      if (kind === 'in') {
+        s.inTk = (s.inTk || 0) + tk;
+        if (agent === 'deepseek' || agent === 'openai') s.paidIn = (s.paidIn || 0) + tk;
+      } else {
+        s.outTk = (s.outTk || 0) + tk;
+        if (agent === 'deepseek' || agent === 'openai') s.paidOut = (s.paidOut || 0) + tk;
+      }
       try { localStorage.setItem('jarvis-tokens', JSON.stringify(s)); } catch (e) {}
       return s;
     };
@@ -2287,7 +2396,7 @@
       var s = {};
       try { s = JSON.parse(localStorage.getItem('jarvis-tokens') || '{}'); } catch (e) {}
       var inPrice = 0.27, outPrice = 1.10;
-      var cost = ((s.inTk || 0) * inPrice + (s.outTk || 0) * outPrice) / 1e6;
+      var cost = ((s.paidIn || 0) * inPrice + (s.paidOut || 0) * outPrice) / 1e6;
       return { msgs: s.msgs || 0, inTk: s.inTk || 0, outTk: s.outTk || 0, cost: cost };
     }
 
@@ -2564,9 +2673,14 @@
       }
       var peak = d.peakHour;
       var tip = peak ? '高峰时段 ' + peak + ' 点，建议把深度工作安排在这个窗口。' : '多使用几个模块，系统会自动分析你的高效时段。';
+      var fate = dailyFortune();
+      var sug = '结合今日时运（宜 ' + (fate.yi[0] || '静养') + '，卦象 ' + fate.hexName + '）：' +
+        (peak ? '把最重要的 1 件事安排在 ' + peak + ' 点附近；' : '先完成最重要的 1 件事；') +
+        '每专注 50 分钟休息 10 分钟，效率更高。';
       return '<div class="deep-card"><div class="d-t">今日概览</div>' +
         '<div class="d-line">点击 ' + Object.values(a.clicks).reduce(function (s, v) { return s + v; }, 0) + ' 次 · 语音 ' + a.voice + ' 次 · 对话 ' + a.chat + ' 条 · 滚动深度 ' + a.depth + '%</div>' +
         '<div class="d-line">模块停留：' + hms(d.todaySec) + ' · ' + tip + '</div></div>' +
+        '<div class="deep-card"><div class="d-t">今日专注建议</div><div class="d-line">' + esc(sug) + '</div></div>' +
         '<div class="deep-card"><div class="d-t">模块使用排行</div>' + tops + '</div>' +
         '<div class="deep-card"><div class="d-t">功能点击榜</div>' + chtml + '</div>' +
         '<div class="deep-card"><div class="d-t">活跃时段（24 小时）</div><div style="display:flex;align-items:flex-end;gap:2px;height:64px;margin-top:6px">' + hourBars + '</div></div>';
@@ -2589,8 +2703,10 @@
         (LIVE.search.length ? LIVE.search.slice(0, 6).map(function (f) {
           return '<div class="dw-row"><span class="k">' + (f.isDir ? '▣' : '▸') + '</span>' + esc(f.path) + '<span class="v">' + (f.isDir ? '目录' : fmtSize(f.size)) + '</span></div>';
         }).join('') : '') + '</div>';
-      var repo = LIVE.repo.slice(0, 6);
-      var repoHtml = '<div class="dw-block"><div class="dw-sub">GitHub 仓库文件' + (LIVE.repoFallback ? '（备用）' : '') + '</div>' +
+      var repoQ = (window.__repoQ || '').toLowerCase();
+      var repo = LIVE.repo.filter(function (f) { return !repoQ || f.path.toLowerCase().indexOf(repoQ) >= 0; }).slice(0, 6);
+      var repoHtml = '<div class="dw-block"><div class="dw-sub">GitHub 仓库文件 · 搜索</div>' +
+        '<input placeholder="搜索仓库文件…" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;color:inherit;margin-bottom:6px" onclick="event.stopPropagation()" oninput="event.stopPropagation();window.__repoQ=this.value;refreshOpen(\'space\')">' +
         (repo.length ? repo.map(function (f) {
           return '<div class="dw-row" style="cursor:pointer" onclick="event.stopPropagation();window.__anal(\'click\',\'space-repo\');window.open(\'https://github.com/liangfang20001128-coder/jarvis-terminal/blob/main/' + encodeURIComponent(f.path) + '\')"><span class="k">▸</span>' + esc(f.path) + '<span class="v">' + fmtSize(f.size) + '</span></div>';
         }).join('') : '<div class="dw-row">加载中…</div>') + '</div>';
@@ -2605,10 +2721,12 @@
         (LIVE.search.length ? LIVE.search.slice(0, 20).map(function (f) {
           return '<div class="d-line">' + (f.isDir ? '▣ ' : '▸ ') + esc(f.path) + ' <span style="color:var(--acc1);cursor:pointer" onclick="event.stopPropagation();window.jarvis.openTarget(\'file\',\'' + esc(f.path).replace(/'/g, '&#39;') + '\')">打开</span> · <span style="color:var(--acc1);cursor:pointer" onclick="event.stopPropagation();window.jarvis.openTarget(\'reveal\',\'' + esc(f.path).replace(/'/g, '&#39;') + '\')">访达</span></div>';
         }).join('') : '<div class="d-line">输入关键词搜索本机工作空间。</div>') + '</div>';
-      var repo = LIVE.repo.slice(0, 40);
-      var repoHtml = repo.length ? repo.map(function (f) {
+      var repoQ2 = (window.__repoQ || '').toLowerCase();
+      var repo = LIVE.repo.filter(function (f) { return !repoQ2 || f.path.toLowerCase().indexOf(repoQ2) >= 0; }).slice(0, 40);
+      var repoHtml = '<input placeholder="搜索仓库文件（云端可用）…" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;color:inherit;margin-bottom:8px" onclick="event.stopPropagation()" oninput="event.stopPropagation();window.__repoQ=this.value;refreshOpen(\'space\')">' +
+        (repo.length ? repo.map(function (f) {
         return '<div class="d-line" style="cursor:pointer" onclick="event.stopPropagation();window.open(\'https://github.com/liangfang20001128-coder/jarvis-terminal/blob/main/' + encodeURIComponent(f.path) + '\')">▸ ' + esc(f.path) + ' <span style="color:color-mix(in srgb,var(--acc1) 70%, transparent)">' + fmtSize(f.size) + '</span></div>';
-      }).join('') : '<div class="d-line">加载仓库中…</div>';
+      }).join('') : '<div class="d-line">加载仓库中…</div>');
       return '<div class="deep-card"><div class="d-t">本机应用启动器</div>' + appHtml + '</div>' +
         '<div class="deep-card"><div class="d-t">文件搜索与打开（仅本机）</div>' + searchHtml + '</div>' +
         '<div class="deep-card"><div class="d-t">GitHub 仓库浏览器</div>' + repoHtml + '</div>';
@@ -2627,8 +2745,16 @@
         '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'media-qqmusic\');window.open(\'https://y.qq.com\')">▶ QQ音乐</span></div>' +
         biliHtml +
         '<div class="dw-block"><div class="dw-sub">在线电台 · 公开直播流</div>' +
-        '<audio controls style="width:100%;border-radius:8px" src="https://ice2.somafm.com/secretagent-128-mp3"></audio>' +
-        '<div class="dw-row">🎧 Secret Agent（SomaFM）<span class="v">特工风 · 适配贾维斯</span></div></div>';
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">' + RADIO.map(function (ch) {
+          return '<span class="dw-chip" style="' + (ch.url === LIVE.radioUrl ? 'outline:1px solid var(--acc1)' : '') + '" onclick="event.stopPropagation();window.setRadio(\'' + ch.url + '\')">' + ch.name + '</span>';
+        }).join('') + '</div>' +
+        '<audio id="radioPlayer" controls style="width:100%;border-radius:8px" src="' + LIVE.radioUrl + '"></audio>' +
+        '<div class="dw-row">🎧 SomaFM 公开电台<span class="v">5 台切换</span></div></div>' +
+        '<div class="dw-block"><div class="dw-sub">公开曲库 · Internet Archive 搜索</div>' +
+        '<input placeholder="搜索音乐（如 lofi / jazz）…" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;color:inherit;margin-bottom:6px" onclick="event.stopPropagation()" oninput="event.stopPropagation();loadArchive(this.value)">' +
+        (LIVE.archive.length ? LIVE.archive.slice(0, 4).map(function (it) {
+          return '<div class="dw-row"><span class="k">♫</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(it.title) + '</span><span class="v"><audio controls src="' + esc(it.url) + '" style="height:28px;max-width:150px"></audio></span></div>';
+        }).join('') : '<div class="dw-row">输入关键词搜索公开音频</div>') + '</div>';
     };
     window.DEEP.media = function () {
       var bili = LIVE.bili.slice(0, 10);
@@ -2638,22 +2764,26 @@
       var list = bili.length ? bili.map(function (v) {
         return '<div class="d-line" style="cursor:pointer" onclick="event.stopPropagation();window.playBili(\'' + esc(v.bvid) + '\')">▶ ' + esc(v.title) + ' <span style="color:color-mix(in srgb,var(--acc1) 70%, transparent)">' + esc(v.author) + ' · ' + fmtNum(v.play) + ' 播放</span></div>';
       }).join('') : '<div class="d-line">B站热榜加载中…</div>';
-      var local = LIVE.localOnly ? '<div class="d-line">本机可一键启动已安装的 抖音 / 哔哩哔哩 / QQ音乐 桌面版。</div>' :
-        '<div class="d-line" style="cursor:pointer;color:var(--acc1)" onclick="event.stopPropagation();window.jarvis.launch(\'抖音\');window.jarvis.launch(\'哔哩哔哩\');window.jarvis.launch(\'QQ音乐\')">启动桌面版（需白名单）</div>';
+      var local = LIVE.localOnly
+        ? '<div class="d-line">云端模式：桌面版启动仅在本机可用，请打开网页版。</div>'
+        : '<div class="d-line" style="cursor:pointer;color:var(--acc1)" onclick="event.stopPropagation();window.jarvis.launch(\'抖音\');window.jarvis.launch(\'哔哩哔哩\');window.jarvis.launch(\'QQ音乐\')">一键启动桌面版（白名单已预置，仅启动已安装应用）</div>';
       return '<div class="deep-card"><div class="d-t">B站播放器</div>' + player + '</div>' +
         '<div class="deep-card"><div class="d-t">B站热榜' + (LIVE.biliFallback ? ' · 备用' : '') + '</div>' + list + '</div>' +
         '<div class="deep-card"><div class="d-t">账号直通与电台</div>' +
         '<div class="d-line">抖音 / 哔哩哔哩 / QQ音乐：<span style="color:var(--acc1);cursor:pointer" onclick="event.stopPropagation();window.open(\'https://www.douyin.com\')">网页版</span> · ' +
         '<span style="color:var(--acc1);cursor:pointer" onclick="event.stopPropagation();window.open(\'https://www.bilibili.com\')">B站</span> · ' +
         '<span style="color:var(--acc1);cursor:pointer" onclick="event.stopPropagation();window.open(\'https://y.qq.com\')">QQ音乐</span></div>' + local +
-        '<audio controls style="width:100%;margin-top:8px" src="https://ice1.somafm.com/groovesalad-128-mp3"></audio>' +
-        '<div class="d-line">Groove Salad 电台 · 24 小时在线</div></div>';
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">' + RADIO.map(function (ch) {
+          return '<span class="dw-chip" style="' + (ch.url === LIVE.radioUrl ? 'outline:1px solid var(--acc1)' : '') + '" onclick="event.stopPropagation();window.setRadio(\'' + ch.url + '\')">' + ch.name + '</span>';
+        }).join('') + '</div>' +
+        '<audio id="radioPlayer" controls style="width:100%;margin-top:8px" src="' + LIVE.radioUrl + '"></audio>' +
+        '<div class="d-line">SomaFM 公开电台 · 24 小时在线 · 账号直通仅限打开网页版</div></div>';
     };
 
     /* ---- 时运：周易原文 ---- */
     window.DETAIL.fate = function () {
       var f = dailyFortune();
-      return '<div class="dw-block"><div class="dw-sub">今日玄学 · 离线农历计算</div>' +
+      return '<div class="dw-block"><div class="dw-sub">今日玄学 · 娱乐参考</div>' +
         '<div class="dw-row"><span class="k">农历</span> ' + esc(f.lunar) + '</div>' +
         '<div class="dw-row"><span class="k">干支</span> ' + esc(f.ganzhi) + '</div>' +
         '<div class="dw-row"><span class="k">卦象</span> ' + esc(f.hexName) + ' · 运势 ' + f.luck + ' 分</div>' +
@@ -2663,14 +2793,15 @@
     };
     window.DEEP.fate = function () {
       var f = dailyFortune();
-      return '<div class="deep-card"><div class="d-t">今日玄学 · 每日更新</div>' +
+      return '<div class="deep-card"><div class="d-t">今日玄学 · 每日更新（娱乐参考）</div>' +
         '<div class="d-line">农历 ' + esc(f.lunar) + '</div>' +
         '<div class="d-line">干支 ' + esc(f.ganzhi) + '</div>' +
         '<div class="d-line">卦象 ' + esc(f.hexName) + ' · 运势 ' + f.luck + ' 分</div>' +
         '<div class="d-line">宜 ' + esc((f.yi || []).join(' · ') || '—') + '</div>' +
         '<div class="d-line">忌 ' + esc((f.ji || []).join(' · ') || '—') + '</div>' +
         '<div class="d-bar"><i style="width:' + f.luck + '%"></i></div>' +
-        '<div class="d-line">' + esc(f.tip) + '</div></div>' +
+        '<div class="d-line">' + esc(f.tip) + '</div>' +
+        '<div class="d-line" style="opacity:.55;font-size:10px">内容仅供娱乐参考，不构成生活/财务/健康决策依据。</div></div>' +
         '<div class="deep-card"><div class="d-t">玄学顾问 · 智能体分身</div>' +
         '<div class="d-line">问卦 / 解卦 / 命理 / 择日，由独立玄学人格回答（本地 Codex 或云端大模型）。</div>' +
         '<div style="display:flex;gap:6px;margin-top:8px"><input id="divineInput" placeholder="如：今天适合签约吗？" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;color:inherit" onclick="event.stopPropagation()">' +
@@ -2764,29 +2895,31 @@
       con.scrollTop = con.scrollHeight;
     };
 
+    window.lazyLoad = function (mode) {
+      if (mode === 'hot') { loadChinaHot('weibo'); loadChinaHot('zhihu'); loadChinaHot('baidu'); loadChinaHot('douyin'); }
+      if (mode === 'ai') { loadAi(); loadModels(); }
+      if (mode === 'media') loadBili();
+      if (mode === 'space') { loadApps(); loadRepoTree(); }
+    };
+    function ifVisible(fn) { return function () { if (document.hidden) return; fn(); }; }
     loadHot();
-    loadAi();
-    loadSpace();
-    loadChinaHot('weibo');
-    loadChinaHot('zhihu');
-    loadChinaHot('baidu');
-    loadChinaHot('douyin');
-    loadBili();
-    loadModels();
-    loadApps();
-    loadRepoTree();
     loadWeatherIP();
     renderHabit();
-    setTimeout(loadHot, 900);
-    setInterval(loadHot, 60000);
-    setInterval(loadAi, 600000);
-    setInterval(loadBili, 300000);
-    setInterval(loadWeatherIP, 600000);
-    setInterval(renderHabit, 30000);
-    setInterval(function () { window.refreshMiniAll && window.refreshMiniAll(); }, 30000);
+    setInterval(ifVisible(loadHot), 60000);
+    setInterval(ifVisible(loadBili), 300000);
+    setInterval(ifVisible(loadWeatherIP), 600000);
+    setInterval(ifVisible(renderHabit), 30000);
+    setInterval(ifVisible(function () { window.refreshMiniAll && window.refreshMiniAll(); }), 30000);
+    var lastScroll = 0;
     window.addEventListener('scroll', function () {
+      var now = Date.now();
+      if (now - lastScroll < 500) return;
+      lastScroll = now;
       if (window.__anal) window.__anal('scroll');
     }, { passive: true });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) { loadHot(); loadWeatherIP(); window.refreshMiniAll && window.refreshMiniAll(); }
+    });
     setTimeout(function () {
       if (window.jarvis && window.jarvis.sayEN) window.jarvis.sayEN('Systems online, sir.');
     }, 1500);

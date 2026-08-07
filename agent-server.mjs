@@ -10,12 +10,16 @@
 //                  与 JARVIS_OPENAI_MODEL=deepseek-chat 即切换 DeepSeek）
 import { createServer } from "node:http";
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, unlinkSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 
 const PORT = Number(process.env.JARVIS_PORT || 8787);
+const IS_LOCAL = existsSync("/Applications");
+const HOST = process.env.JARVIS_HOST || (IS_LOCAL ? "127.0.0.1" : "0.0.0.0");
+const ALLOW_ORIGIN = /^https:\/\/(liangfang20001128-coder\.github\.io|jarvis-agent-oqcy\.onrender\.com)$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const ALLOW_HOST = /^(localhost|127\.0\.0\.1)(:\d+)?$|^jarvis-agent-oqcy\.onrender\.com$/;
 const AGENT_MODE = process.env.JARVIS_AGENT || "auto";
 const CODEX_BIN =
   process.env.CODEX_BIN ||
@@ -28,7 +32,7 @@ const SYSTEM_PROMPT = `你是「贾维斯」，钢铁侠的智能管家，运行
 你只负责对话与决策，不调用任何工具、不执行任何命令、不访问文件系统。
 你可以操控终端模块。当用户要求打开/切换某个模块时，在你的回复末尾单独输出一行：
 [[module:模式ID]]
-模式ID 只能是：chat（对话）、hot（全球热点）、ai（AI 模型）、habit（行为洞察）、media（影音）、space（空间）、fate（时运）。
+模式ID 只能是：chat（对话）、hot（全球热点）、ai（AI 模型）、habit（行为洞察）、media（影音）、space（空间）、fate（时运）、weather（天气）。
 例如用户说“打开音乐”，你回复一句台词后输出 [[module:media]]。
 如果没有模块操作需求，不要输出该标记。
 `;
@@ -97,12 +101,23 @@ async function fetchWithTimeout(url, ms = 8000, headers = {}) {
 }
 
 const respCache = new Map();
+const RESP_CACHE_MAX = 100;
+const RESP_BODY_MAX = 4 * 1024 * 1024;
 async function cachedFetch(url, { ms = 12000, ttl = 120000, headers = {} } = {}) {
   const hit = respCache.get(url);
   if (hit && Date.now() - hit.at < ttl) return hit.data;
   const r = await fetchWithTimeout(url, ms, headers);
-  const data = await r.json().catch(() => ({}));
-  respCache.set(url, { at: Date.now(), data });
+  const text = await r.text().catch(() => "");
+  let data = {};
+  try { data = JSON.parse(text); } catch (e) { data = {}; }
+  if (text.length <= RESP_BODY_MAX) {
+    respCache.delete(url);
+    respCache.set(url, { at: Date.now(), data });
+    if (respCache.size > RESP_CACHE_MAX) {
+      const oldest = respCache.keys().next().value;
+      if (oldest !== undefined) respCache.delete(oldest);
+    }
+  }
   return data;
 }
 
@@ -115,40 +130,31 @@ async function getHot() {
     { url: "https://sspai.com/feed", cat: "数码", name: "少数派" },
     { url: "https://www.thepaper.cn/rss", cat: "时政", name: "澎湃" },
   ];
-  for (const s of sources) {
-    try {
-      const r = await fetchWithTimeout(s.url);
-      const xml = await r.text();
-      let items = parseRSS(xml);
-      if (!items.length) items = parseAtom(xml);
-      for (const it of items) {
-        const dash = it.title.lastIndexOf(" - ");
-        const source = s.name;
-        const title = dash > 0 ? it.title.slice(0, dash) : it.title;
-        if (title) out.push({ title, source, link: it.link, pub: it.pub, cat: s.cat });
-      }
-    } catch (e) {
-      /* 单源失败不影响整体 */
-    }
-  }
-  try {
-    const r = await fetchWithTimeout(
-      "https://hn.algolia.com/api/v1/search?query=AI%20OR%20LLM%20OR%20GPT&tags=story&hitsPerPage=12",
-      10000
-    );
-    const j = await r.json();
-    for (const hit of j.hits || []) {
-      if (!hit.title) continue;
-      out.push({
-        title: hit.title,
+  const tasks = sources.map(async (s) => {
+    const r = await fetchWithTimeout(s.url);
+    const xml = await r.text();
+    let items = parseRSS(xml);
+    if (!items.length) items = parseAtom(xml);
+    return items.map((it) => {
+      const dash = it.title.lastIndexOf(" - ");
+      const title = dash > 0 ? it.title.slice(0, dash) : it.title;
+      return title ? { title, source: s.name, link: it.link, pub: it.pub, cat: s.cat } : null;
+    }).filter(Boolean);
+  });
+  tasks.push(
+    fetchWithTimeout("https://hn.algolia.com/api/v1/search?query=AI%20OR%20LLM%20OR%20GPT&tags=story&hitsPerPage=12", 10000)
+      .then((r) => r.json())
+      .then((j) => (j.hits || []).filter((h) => h.title).map((h) => ({
+        title: h.title,
         source: "Hacker News",
-        link: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
-        pub: hit.created_at || "",
+        link: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
+        pub: h.created_at || "",
         cat: "国际AI",
-      });
-    }
-  } catch (e) {
-    /* 国际源失败可接受 */
+      })))
+  );
+  const results = await Promise.allSettled(tasks);
+  for (const res of results) {
+    if (res.status === "fulfilled" && Array.isArray(res.value)) out.push(...res.value);
   }
   const seen = new Set();
   const res = [];
@@ -257,12 +263,10 @@ async function getBiliHot() {
       () => cachedFetch("https://api.vvhan.com/api/hotlist/biliHot", { ttl: 300000 })
         .then((j) => (j.data || []).map((x) => ({ bvid: x.bvid || "", title: x.title, pic: x.pic || "", author: x.author || "", play: x.hot || "", danmaku: "" }))),
     ];
+    const results = await Promise.allSettled(attempts.map((fn) => fn()));
     let raw = [];
-    for (const fn of attempts) {
-      try {
-        const arr = await fn();
-        if (Array.isArray(arr) && arr.length) { raw = arr; break; }
-      } catch (e) { /* 尝试下一个源 */ }
+    for (const res of results) {
+      if (res.status === "fulfilled" && Array.isArray(res.value) && res.value.length) { raw = res.value; break; }
     }
     if (!raw.length) return { items: [{ bvid: "", title: "B站热榜暂不可用（备用数据）", pic: "", author: "", play: "", danmaku: "" }], fallback: true };
     const list = raw.map((x) => ({
@@ -437,7 +441,7 @@ async function getWeather(city, lat, lon) {
   );
   const cur = f.current || {};
   const daily = f.daily || {};
-  if (!cur.temperature_2m && !daily.time) {
+  if (cur.temperature_2m == null || !daily.time || !daily.time.length) {
     try {
       const w = await getWeatherWttr(city, coords.lat, coords.lon);
       weatherCache.data = w;
@@ -491,6 +495,28 @@ async function getWeatherByIP(clientIp) {
   return getWeather("北京");
 }
 
+async function searchArchive(q) {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(String(q || "").slice(0, 40))}&fl%5B%5D=identifier&fl%5B%5D=title&rows=8&output=json`;
+  const j = await cachedFetch(url, { ttl: 600000 });
+  const docs = (j.response && j.response.docs) || [];
+  const out = [];
+  for (const d of docs.slice(0, 6)) {
+    try {
+      const md = await cachedFetch(`https://archive.org/metadata/${d.identifier}`, { ttl: 3600000 });
+      const files = ((md.files) || []).filter((f) => f && /^audio\//.test(f.format) && f.name);
+      if (files.length) {
+        out.push({
+          id: d.identifier,
+          title: d.title || d.identifier,
+          file: files[0].name,
+          url: `https://archive.org/download/${d.identifier}/${encodeURIComponent(files[0].name)}`,
+        });
+      }
+    } catch (e) { /* 单条失败跳过 */ }
+  }
+  return out;
+}
+
 async function getRepoTree() {
   try {
     const j = await cachedFetch(`https://api.github.com/repos/${GITHUB_USER}/jarvis-terminal/git/trees/main?recursive=1`, {
@@ -507,16 +533,14 @@ const aiCache = { at: 0, data: null };
 async function getAi() {
   if (aiCache.data && Date.now() - aiCache.at < 600000) return aiCache.data;
   const out = [];
-  try {
+  const fetchPapers = async () => {
     const url =
       "https://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG&sortBy=submittedDate&sortOrder=descending&max_results=8";
     const r = await fetchWithTimeout(url, 12000);
     const xml = await r.text();
-    out.push({ kind: "paper", items: parseAtom(xml) });
-  } catch (e) {
-    out.push({ kind: "paper", items: [], error: String(e.message || e) });
-  }
-  try {
+    return { kind: "paper", items: parseAtom(xml) };
+  };
+  const fetchModels = async () => {
     const r = await fetchWithTimeout("https://huggingface.co/api/trending", 10000);
     const j = await r.json();
     const seen = new Set();
@@ -535,9 +559,11 @@ async function getAi() {
         });
       }
     }
-    out.push({ kind: "model", items: items.slice(0, 10) });
-  } catch (e) {
-    out.push({ kind: "model", items: [], error: String(e.message || e) });
+    return { kind: "model", items: items.slice(0, 10) };
+  };
+  const results = await Promise.allSettled([fetchPapers(), fetchModels()]);
+  for (const res of results) {
+    out.push(res.status === "fulfilled" ? res.value : { kind: "paper", items: [], error: "fetch failed" });
   }
   aiCache.data = out;
   aiCache.at = Date.now();
@@ -594,19 +620,21 @@ function openTarget(type, value) {
   if (!existsSync("/Applications")) {
     return Promise.resolve({ ok: false, localOnly: true, error: "本机功能仅在本机可用" });
   }
-  if (type === "app") {
-    const names = new Set([...getApps().map((a) => a.name), ...Object.keys(launchAllowlist)]);
-    if (!names.has(String(value || ""))) {
-      return Promise.resolve({ ok: false, error: `应用不在白名单：${value}` });
-    }
-    return new Promise((resolve) => {
-      execFile("open", ["-a", String(value)], (err) =>
-        resolve(err ? { ok: false, error: String(err.message || err) } : { ok: true, message: `已启动 ${value}` })
-      );
-    });
+  if (!["app", "file", "reveal"].includes(String(type || ""))) {
+    return Promise.resolve({ ok: false, error: "type 不合法" });
   }
-  const resolved = join(ROOT, String(value || "").replace(/^\/+/, ""));
-  if (!resolved.startsWith(ROOT) || !existsSync(resolved)) {
+  if (type === "app") {
+    return launchApp(String(value));
+  }
+  let resolved;
+  try {
+    resolved = resolve(ROOT, String(value || "").replace(/^\/+/, ""));
+    const realRoot = realpathSync(ROOT);
+    const realResolved = realpathSync(resolved);
+    if (realResolved !== realRoot && !realResolved.startsWith(realRoot + "/")) {
+      return Promise.resolve({ ok: false, error: "路径越界" });
+    }
+  } catch (e) {
     return Promise.resolve({ ok: false, error: "路径不合法或不存在" });
   }
   return new Promise((resolve) => {
@@ -637,9 +665,21 @@ function searchWorkspace(q) {
   return out.slice(0, 60);
 }
 
+const LAUNCH_DEFAULTS = {
+  微信: "WeChat",
+  抖音: "抖音",
+  哔哩哔哩: "bilibili",
+  QQ音乐: "QQ音乐",
+  Chrome: "Google Chrome",
+  终端: "Terminal",
+  访达: "Finder",
+  Safari: "Safari",
+  备忘录: "Notes",
+};
 let launchAllowlist = {};
 try {
-  launchAllowlist = JSON.parse(process.env.JARVIS_LAUNCH || "{}");
+  const envAllow = JSON.parse(process.env.JARVIS_LAUNCH || "{}");
+  launchAllowlist = { ...LAUNCH_DEFAULTS, ...envAllow };
 } catch (e) {}
 
 function launchApp(key) {
@@ -684,6 +724,8 @@ function fallbackReply(text) {
 function runCodex(message, systemPrompt = SYSTEM_PROMPT) {
   return new Promise((resolve, reject) => {
     const out = join(tmpdir(), `jarvis-codex-${randomUUID()}.txt`);
+    try { writeFileSync(out, "", { mode: 0o600 }); } catch (e) { /* 尽力而为 */ }
+    const cleanup = () => { try { unlinkSync(out); } catch (e) { /* 已删除 */ } };
     const child = execFile(
       CODEX_BIN,
       [
@@ -703,14 +745,16 @@ function runCodex(message, systemPrompt = SYSTEM_PROMPT) {
     child.stderr.on("data", (d) => (stderr += d));
     child.stdin.end(`${systemPrompt}\n\n用户：${message}`);
     child.on("close", (code) => {
-      if (code !== 0) return reject(new Error(stderr || `codex exited ${code}`));
+      if (code !== 0) { cleanup(); return reject(new Error(stderr || `codex exited ${code}`)); }
       try {
         resolve(readFileSync(out, "utf8"));
       } catch (err) {
         reject(err);
+      } finally {
+        cleanup();
       }
     });
-    child.on("error", reject);
+    child.on("error", (err) => { cleanup(); reject(err); });
   });
 }
 
@@ -743,6 +787,7 @@ async function runChatAPI(message, systemPrompt = SYSTEM_PROMPT) {
       ],
       max_tokens: 900,
     }),
+    signal: AbortSignal.timeout(60000),
   });
   if (!r.ok) {
     const body = await r.text().catch(() => "");
@@ -752,7 +797,7 @@ async function runChatAPI(message, systemPrompt = SYSTEM_PROMPT) {
   const text = (((j.choices || [])[0] || {}).message || {}).content;
   const out = String(text || "").trim();
   if (!out) throw new Error("大模型返回为空");
-  return out;
+  return { reply: out, usage: j.usage || null };
 }
 
 const FATE_PROMPT = `你是「玄学顾问」，精通《周易》、命理、风水、节气民俗的中文顾问。
@@ -775,7 +820,8 @@ async function runDivine(message) {
   }
   if (process.env.OPENAI_API_KEY && (AGENT_MODE === "openai" || AGENT_MODE === "auto")) {
     try {
-      return { agent: apiProvider(), reply: await runChatAPI(String(message), FATE_PROMPT) };
+      const r = await runChatAPI(String(message), FATE_PROMPT);
+      return { agent: apiProvider(), reply: r.reply };
     } catch (e) { /* fallthrough */ }
   }
   const fallback = [
@@ -800,18 +846,67 @@ function parseModule(reply) {
 }
 
 function json(res, code, data) {
+  const origin = res._jarvisOrigin || "";
   res.writeHead(code, {
     "Content-Type": "application/json; charset=utf-8",
-    "Access-Control-Allow-Origin": "*",
+    ...(origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : {}),
     "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Jarvis-Token",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
   });
   res.end(JSON.stringify(data));
 }
 
+function readBody(req, limit = 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    let done = false;
+    const timer = setTimeout(() => {
+      done = true;
+      reject(new Error("请求超时"));
+    }, 15000);
+    req.on("data", (d) => {
+      if (done) return;
+      body += d;
+      if (body.length > limit) {
+        done = true;
+        clearTimeout(timer);
+        reject(new Error("请求体过大"));
+        try { req.destroy(); } catch (e) {}
+      }
+    });
+    req.on("end", () => {
+      if (!done) { done = true; clearTimeout(timer); resolve(body); }
+    });
+    req.on("error", (e) => {
+      if (!done) { done = true; clearTimeout(timer); reject(e); }
+    });
+  });
+}
+
+const rateHits = new Map();
+function rateLimit(key, limit, windowMs) {
+  const now = Date.now();
+  const arr = (rateHits.get(key) || []).filter((t) => now - t < windowMs);
+  if (arr.length >= limit) return false;
+  arr.push(now);
+  rateHits.set(key, arr);
+  if (rateHits.size > 500) {
+    const oldest = rateHits.keys().next().value;
+    if (oldest !== undefined) rateHits.delete(oldest);
+  }
+  return true;
+}
+
 const server = createServer(async (req, res) => {
-  if (req.method === "OPTIONS") return json(res, 204, {});
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
+  const host = String(req.headers.host || "").toLowerCase();
+  if (!ALLOW_HOST.test(host)) return json(res, 403, { ok: false, error: "host 不允许" });
+  const origin = String(req.headers.origin || "");
+  if (origin && !ALLOW_ORIGIN.test(origin)) return json(res, 403, { ok: false, error: "origin 不允许" });
+  res._jarvisOrigin = origin && ALLOW_ORIGIN.test(origin) ? origin : "";
+  if (req.method === "OPTIONS") return json(res, 204, {});
   if (url.pathname === "/api/status") {
     return json(res, 200, {
       ok: true,
@@ -865,8 +960,8 @@ const server = createServer(async (req, res) => {
   }
   if (url.pathname === "/api/weather/ip") {
     try {
-      const fwd = (req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-      const clientIp = fwd || (req.socket && req.socket.remoteAddress) || "";
+      const fwd = IS_LOCAL ? "" : (req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+      const clientIp = fwd || (IS_LOCAL ? "" : (req.socket && req.socket.remoteAddress) || "");
       return json(res, 200, { ok: true, ...(await getWeatherByIP(clientIp)) });
     } catch (e) {
       return json(res, 200, { ok: false, error: String(e.message || e) });
@@ -884,6 +979,35 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true, ...(await getRepoTree()) });
     } catch (e) {
       return json(res, 200, { ok: false, error: String(e.message || e), tree: [] });
+    }
+  }
+  if (url.pathname === "/api/media/search") {
+    try {
+      const q = url.searchParams.get("q") || "";
+      if (!q.trim()) return json(res, 200, { ok: true, items: [] });
+      return json(res, 200, { ok: true, items: await searchArchive(q) });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: String(e.message || e), items: [] });
+    }
+  }
+  if (url.pathname === "/api/health") {
+    try {
+      const now = Date.now();
+      const age = (c) => (c && c.at ? Math.round((now - c.at) / 1000) : null);
+      const stale = (c, ttl) => (c && c.at ? now - c.at > ttl : true);
+      return json(res, 200, {
+        ok: true,
+        ts: now,
+        health: {
+          hot: { age: age(hotCache), stale: stale(hotCache, 120000) },
+          ai: { age: age(aiCache), stale: stale(aiCache, 600000) },
+          weather: { age: age(weatherCache), stale: stale(weatherCache, 600000) },
+          bili: { cached: respCache.has("https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all") },
+          models: { cached: respCache.has("https://openrouter.ai/api/v1/models") },
+        },
+      });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: String(e.message || e) });
     }
   }
   if (url.pathname === "/api/ai") {
@@ -911,128 +1035,127 @@ const server = createServer(async (req, res) => {
   if (url.pathname === "/api/apps") {
     try {
       if (!existsSync("/Applications")) return json(res, 200, { ok: true, localOnly: true, apps: [] });
-      return json(res, 200, { ok: true, localOnly: false, apps: getApps() });
+      const names = new Set(Object.keys(launchAllowlist));
+      const apps = getApps().filter((a) => names.has(a.name));
+      return json(res, 200, { ok: true, localOnly: false, apps });
     } catch (e) {
       return json(res, 200, { ok: false, error: String(e.message || e), apps: [] });
     }
   }
   if (url.pathname === "/api/open" && req.method === "POST") {
-    let body = "";
-    req.on("data", (d) => (body += d));
-    req.on("end", async () => {
-      try {
-        const { type, value } = JSON.parse(body || "{}");
-        return json(res, 200, await openTarget(String(type || ""), String(value || "")));
-      } catch (e) {
-        return json(res, 500, { ok: false, error: String(e.message || e) });
-      }
-    });
-    return;
+    const ip = req.socket.remoteAddress || "unknown";
+    if (!rateLimit("open:" + ip, 60, 60000)) return json(res, 429, { ok: false, error: "请求过于频繁" });
+    let body;
+    try { body = await readBody(req); } catch (e) { return json(res, 400, { ok: false, error: String(e.message || e) }); }
+    try {
+      const { type, value } = JSON.parse(body || "{}");
+      return json(res, 200, await openTarget(String(type || ""), String(value || "")));
+    } catch (e) {
+      return json(res, 500, { ok: false, error: String(e.message || e) });
+    }
   }
   if (url.pathname === "/api/divine" && req.method === "POST") {
-    let body = "";
-    req.on("data", (d) => (body += d));
-    req.on("end", async () => {
-      try {
-        const { message } = JSON.parse(body || "{}");
-        if (!message || !String(message).trim()) {
-          return json(res, 400, { ok: false, error: "message 为空" });
-        }
-        return json(res, 200, { ok: true, ...(await runDivine(String(message))) });
-      } catch (e) {
-        return json(res, 500, { ok: false, error: String(e.message || e) });
+    const ip = req.socket.remoteAddress || "unknown";
+    if (!rateLimit("divine:" + ip, 30, 60000)) return json(res, 429, { ok: false, error: "请求过于频繁" });
+    let body;
+    try { body = await readBody(req); } catch (e) { return json(res, 400, { ok: false, error: String(e.message || e) }); }
+    try {
+      const { message } = JSON.parse(body || "{}");
+      if (!message || !String(message).trim()) {
+        return json(res, 400, { ok: false, error: "message 为空" });
       }
-    });
-    return;
+      return json(res, 200, { ok: true, ...(await runDivine(String(message))) });
+    } catch (e) {
+      return json(res, 500, { ok: false, error: String(e.message || e) });
+    }
   }
   if (url.pathname === "/api/launch" && req.method === "POST") {
-    let body = "";
-    req.on("data", (d) => (body += d));
-    req.on("end", async () => {
-      try {
-        const { key } = JSON.parse(body || "{}");
-        return json(res, 200, await launchApp(String(key || "")));
-      } catch (e) {
-        return json(res, 500, { ok: false, error: String(e.message || e) });
-      }
-    });
-    return;
+    const ip = req.socket.remoteAddress || "unknown";
+    if (!rateLimit("launch:" + ip, 60, 60000)) return json(res, 429, { ok: false, error: "请求过于频繁" });
+    let body;
+    try { body = await readBody(req); } catch (e) { return json(res, 400, { ok: false, error: String(e.message || e) }); }
+    try {
+      const { key } = JSON.parse(body || "{}");
+      return json(res, 200, await launchApp(String(key || "")));
+    } catch (e) {
+      return json(res, 500, { ok: false, error: String(e.message || e) });
+    }
   }
   if (url.pathname === "/api/chat" && req.method === "POST") {
-    let body = "";
-    req.on("data", (d) => (body += d));
-    req.on("end", async () => {
-      try {
-        const { message, forceFallback } = JSON.parse(body || "{}");
-        if (!message || !String(message).trim()) {
-          return json(res, 400, { ok: false, error: "message 为空" });
-        }
-        const useCodex =
-          !forceFallback &&
-          (AGENT_MODE === "codex" || (AGENT_MODE === "auto" && codexAvailable()));
-        const useAPI =
-          !forceFallback &&
-          !useCodex &&
-          process.env.OPENAI_API_KEY &&
-          (AGENT_MODE === "openai" || AGENT_MODE === "auto");
-        if (useCodex) {
-          try {
-            const reply = await runCodex(String(message));
-            return json(res, 200, {
-              ok: true,
-              agent: "codex",
-              reply,
-              mod: parseModule(reply),
-            });
-          } catch (err) {
-            const f = fallbackReply(String(message));
-            return json(res, 200, {
-              ok: true,
-              agent: "fallback",
-              degraded: String(err.message || err),
-              reply: `${f.reply}\n（Codex 调用失败，已降级为演示路由）`,
-              mod: f.mod,
-            });
-          }
-        }
-        if (useAPI) {
-          try {
-            const reply = await runChatAPI(String(message));
-            return json(res, 200, {
-              ok: true,
-              agent: apiProvider(),
-              reply,
-              mod: parseModule(reply),
-            });
-          } catch (err) {
-            const f = fallbackReply(String(message));
-            return json(res, 200, {
-              ok: true,
-              agent: "fallback",
-              degraded: String(err.message || err),
-              reply: `${f.reply}\n（云端大模型调用失败，已降级为演示路由）`,
-              mod: f.mod,
-            });
-          }
-        }
-        const f = fallbackReply(String(message));
-        return json(res, 200, {
-          ok: true,
-          agent: "fallback",
-          reply: f.reply,
-          mod: f.mod,
-        });
-      } catch (err) {
-        return json(res, 500, { ok: false, error: String(err.message || err) });
+    const ip = req.socket.remoteAddress || "unknown";
+    if (!rateLimit("chat:" + ip, 40, 60000)) return json(res, 429, { ok: false, error: "请求过于频繁" });
+    let body;
+    try { body = await readBody(req); } catch (e) { return json(res, 400, { ok: false, error: String(e.message || e) }); }
+    try {
+      const { message, forceFallback } = JSON.parse(body || "{}");
+      if (!message || !String(message).trim()) {
+        return json(res, 400, { ok: false, error: "message 为空" });
       }
-    });
-    return;
+      const useCodex =
+        !forceFallback &&
+        (AGENT_MODE === "codex" || (AGENT_MODE === "auto" && codexAvailable()));
+      const useAPI =
+        !forceFallback &&
+        !useCodex &&
+        process.env.OPENAI_API_KEY &&
+        (AGENT_MODE === "openai" || AGENT_MODE === "auto");
+      if (useCodex) {
+        try {
+          const reply = await runCodex(String(message));
+          return json(res, 200, {
+            ok: true,
+            agent: "codex",
+            reply,
+            mod: parseModule(reply),
+          });
+        } catch (err) {
+          const f = fallbackReply(String(message));
+          return json(res, 200, {
+            ok: true,
+            agent: "fallback",
+            degraded: String(err.message || err),
+            reply: `${f.reply}\n（Codex 调用失败，已降级为演示路由）`,
+            mod: f.mod,
+          });
+        }
+      }
+      if (useAPI) {
+        try {
+          const { reply, usage } = await runChatAPI(String(message));
+          return json(res, 200, {
+            ok: true,
+            agent: apiProvider(),
+            reply,
+            mod: parseModule(reply),
+            usage,
+          });
+        } catch (err) {
+          const f = fallbackReply(String(message));
+          return json(res, 200, {
+            ok: true,
+            agent: "fallback",
+            degraded: String(err.message || err),
+            reply: `${f.reply}\n（云端大模型调用失败，已降级为演示路由）`,
+            mod: f.mod,
+          });
+        }
+      }
+      const f = fallbackReply(String(message));
+      return json(res, 200, {
+        ok: true,
+        agent: "fallback",
+        reply: f.reply,
+        mod: f.mod,
+      });
+    } catch (err) {
+      return json(res, 500, { ok: false, error: String(err.message || err) });
+    }
   }
   return json(res, 404, { ok: false, error: "not found" });
 });
 
-server.listen(PORT, process.env.JARVIS_HOST || "0.0.0.0", () => {
+server.listen(PORT, HOST, () => {
   console.log(
-    `JARVIS agent bridge ready at http://127.0.0.1:${PORT}  (agent=${chatMode()})`
+    `JARVIS agent bridge ready at http://${HOST}:${PORT}  (agent=${chatMode()})`
   );
 });
