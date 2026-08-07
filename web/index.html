@@ -1,0 +1,2225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J.A.R.V.I.S 全息智能终端</title>
+<script src="config.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #04070f; color: #eaf6ff; }
+  body { min-height: 100vh; padding: 20px; box-sizing: border-box; font-family: "PingFang SC", -apple-system, sans-serif; }
+  .holo { margin: 0 auto; }
+  @media (max-width: 900px) { body { padding: 8px; } }
+</style>
+</head>
+<body>
+<style>
+  .envbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .envlabel { font-size: 12px; color: #667; letter-spacing: 1px; }
+  .env-btn {
+    font: 600 12px/1 "PingFang SC", sans-serif;
+    padding: 7px 13px;
+    border-radius: 999px;
+    border: 1px solid rgba(100,140,200,.35);
+    background: rgba(255,255,255,.6);
+    color: #445;
+    cursor: pointer;
+  }
+  .env-btn.on { background: #0b1c2e; border-color: #0b1c2e; color: #9fe8ff; box-shadow: 0 0 14px rgba(80,200,255,.45); }
+  .einfo { font-size: 11px; color: #778; margin-left: 4px; }
+
+  .holo {
+    --acc1: #7ce7ff;
+    --acc2: #4f9dff;
+    --mag: #ff5fa2;
+    --txt: #eaf6ff;
+    --bgA: rgba(38,90,180,.22);
+    --bgB: rgba(70,40,160,.20);
+    position: relative;
+    width: 100%;
+    height: 690px;
+    border-radius: 20px;
+    overflow: hidden;
+    background:
+      radial-gradient(1200px 500px at 50% -10%, var(--bgA), transparent 60%),
+      radial-gradient(900px 420px at 90% 110%, var(--bgB), transparent 60%),
+      linear-gradient(168deg, #050a16, #01030a 80%);
+    font-family: "PingFang SC", "Hiragino Sans GB", -apple-system, sans-serif;
+    color: var(--txt);
+    border: 1px solid rgba(140,210,255,.18);
+    box-shadow: 0 40px 90px rgba(0,0,0,.6), inset 0 0 120px rgba(90,180,255,.06);
+    display: flex;
+    flex-direction: column;
+  }
+  .mono { font-family: "SF Mono", Menlo, ui-monospace, monospace; }
+  .holo.tint-dawn  { --acc1: #ffb199; --acc2: #b58cff; --mag: #ff8fb0; --bgA: rgba(190,90,140,.26); --bgB: rgba(120,70,190,.24); }
+  .holo.tint-noon  { --acc1: #8fd0ff; --acc2: #3f8cff; --mag: #ff9d5c; --bgA: rgba(60,130,220,.26); --bgB: rgba(40,160,200,.20); }
+  .holo.tint-dusk  { --acc1: #ffb36b; --acc2: #ff6f91; --mag: #c26bff; --bgA: rgba(230,110,60,.26); --bgB: rgba(140,60,180,.22); }
+  .holo.tint-night { --acc1: #7ce7ff; --acc2: #4f9dff; --mag: #ff5fa2; --bgA: rgba(38,90,180,.22); --bgB: rgba(70,40,160,.20); }
+
+  .grid-floor {
+    position: absolute; left: -25%; right: -25%; bottom: -8%; height: 46%;
+    background:
+      repeating-linear-gradient(90deg, color-mix(in srgb, var(--acc1) 16%, transparent) 0 1px, transparent 1px 52px),
+      repeating-linear-gradient(0deg, color-mix(in srgb, var(--acc1) 13%, transparent) 0 1px, transparent 1px 40px);
+    transform: perspective(460px) rotateX(64deg);
+    transform-origin: 50% 100%;
+    -webkit-mask-image: linear-gradient(180deg, transparent, #000 55%);
+    mask-image: linear-gradient(180deg, transparent, #000 55%);
+    animation: gridmove 1.8s linear infinite;
+  }
+  @keyframes gridmove { to { background-position: 0 40px, 0 40px; } }
+  .beam { position: absolute; top: -12%; bottom: 10%; width: 120px; background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--acc1) 9%, transparent), transparent); filter: blur(14px); animation: beam 7s ease-in-out infinite alternate; pointer-events: none; }
+  .beam.b1 { left: 12%; transform: rotate(8deg); }
+  .beam.b2 { right: 16%; transform: rotate(-6deg); animation-delay: -3s; animation-name: beam2; }
+  @keyframes beam { from { opacity: .35; } to { opacity: .9; } }
+  @keyframes beam2 { from { opacity: .3; } to { opacity: .85; } }
+  .scanline { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--acc1), transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--acc1) 80%, transparent); animation: scan 7s linear infinite; z-index: 5; pointer-events: none; }
+  @keyframes scan { 0% { top: -4px; } 100% { top: calc(100% + 4px); } }
+  .particles { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .particles .p { position: absolute; width: 1.5px; height: 1.5px; border-radius: 50%; background: var(--acc1); box-shadow: 0 0 5px var(--acc1); opacity: 0; animation: pdrift linear infinite; }
+  .particles .p.big { width: 3px; height: 3px; background: #fff; }
+  @keyframes pdrift { 0% { transform: translateY(0); opacity: 0; } 12% { opacity: .9; } 85% { opacity: .55; } 100% { transform: translateY(150px); opacity: 0; } }
+  .corner { position: absolute; width: 34px; height: 34px; z-index: 4; pointer-events: none; }
+  .corner::before, .corner::after { content: ""; position: absolute; background: color-mix(in srgb, var(--acc1) 80%, transparent); box-shadow: 0 0 8px color-mix(in srgb, var(--acc1) 60%, transparent); }
+  .corner::before { width: 100%; height: 1.5px; }
+  .corner::after { width: 1.5px; height: 100%; }
+  .corner.tl { top: 12px; left: 12px; } .corner.tr { top: 12px; right: 12px; transform: scaleX(-1); }
+  .corner.bl { bottom: 12px; left: 12px; transform: scaleY(-1); } .corner.br { bottom: 12px; right: 12px; transform: scale(-1); }
+
+  /* top */
+  .h-top { position: relative; z-index: 6; display: flex; align-items: flex-start; gap: 14px; padding: 16px 24px 0; }
+  .h-clock { display: flex; align-items: center; gap: 8px; }
+  .h-clock .c { font-size: 15px; font-weight: 300; letter-spacing: 2px; color: color-mix(in srgb, var(--txt) 92%, transparent); text-shadow: 0 0 14px color-mix(in srgb, var(--acc1) 45%, transparent); }
+  .h-clock .m { font-size: 10px; letter-spacing: 2px; color: color-mix(in srgb, var(--txt) 65%, transparent); }
+  .h-top .sp { flex: 1; }
+  .h-chip {
+    font-size: 10px; letter-spacing: 1px; color: color-mix(in srgb, var(--txt) 85%, transparent);
+    padding: 6px 12px; border-radius: 999px;
+    background: linear-gradient(160deg, rgba(255,255,255,.10), rgba(255,255,255,.03));
+    -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%);
+    border: 1px solid rgba(255,255,255,.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.28);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .h-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: #3ef5a6; box-shadow: 0 0 9px #3ef5a6; }
+  .h-chip.clickable { cursor: pointer; transition: all .25s; }
+  .h-chip.clickable:hover {
+    border-color: color-mix(in srgb, var(--acc1) 55%, transparent);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--acc1) 35%, transparent), inset 0 1px 0 rgba(255,255,255,.28);
+  }
+  .wave { display: inline-flex; gap: 2px; align-items: flex-end; height: 10px; }
+  .wave i { width: 2px; border-radius: 1px; background: var(--acc1); box-shadow: 0 0 6px var(--acc1); animation: wave 1.1s ease-in-out infinite; }
+  .wave i:nth-child(2) { animation-delay: .12s; } .wave i:nth-child(3) { animation-delay: .24s; }
+  .wave i:nth-child(4) { animation-delay: .36s; } .wave i:nth-child(5) { animation-delay: .48s; }
+  @keyframes wave { 0%,100% { height: 4px; } 50% { height: 10px; } }
+
+  /* vertical title rail */
+  /* stage */
+  .h-main {
+    position: relative; z-index: 3; flex: 1; min-height: 0;
+    perspective: 1100px;
+  }
+  .orbit-el {
+    position: absolute; border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--acc1) 26%, transparent);
+    transform-style: preserve-3d;
+  }
+  .oe1 { left: 3%; right: 16%; top: 8%; bottom: 10%; transform: rotateX(64deg) rotateZ(-8deg); animation: spin 46s linear infinite; }
+  .oe2 { left: 8%; right: 28%; top: 18%; bottom: 20%; transform: rotateX(58deg) rotateZ(14deg); animation: spin 70s linear infinite reverse; border-color: color-mix(in srgb, var(--mag) 22%, transparent); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .links { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+  .links line { stroke: color-mix(in srgb, var(--acc1) 30%, transparent); stroke-width: 1; stroke-dasharray: 3 6; animation: dash 7s linear infinite; transition: stroke .3s; }
+  .links line.on { stroke: color-mix(in srgb, var(--acc1) 95%, transparent); filter: drop-shadow(0 0 5px var(--acc1)); }
+  .holo.layers-open .links { opacity: 0; transition: opacity .3s; }
+  @keyframes dash { to { stroke-dashoffset: -90; } }
+
+  .core-wrap {
+    position: absolute; z-index: 2;
+    left: 23%; top: 42%;
+    width: 200px; height: 200px;
+    transform: translate(-50%, -50%) rotateX(4deg) rotateY(-6deg);
+  }
+  .rc-ring { position: absolute; border-radius: 50%; }
+  .rc1 { inset: 0; border: 1px solid color-mix(in srgb, var(--acc1) 60%, transparent); box-shadow: 0 0 30px color-mix(in srgb, var(--acc1) 30%, transparent), inset 0 0 30px color-mix(in srgb, var(--acc1) 18%, transparent); animation: rspin 20s linear infinite; }
+  .rc1::before { content: ""; position: absolute; top: -2px; left: 50%; width: 5px; height: 5px; border-radius: 50%; background: #fff; box-shadow: 0 0 12px var(--acc1); }
+  .rc2 { inset: 18px; border: 1px dashed color-mix(in srgb, var(--acc2) 45%, transparent); animation: rspin 13s linear infinite reverse; }
+  .rc3 { inset: 42px; border: 1px solid color-mix(in srgb, var(--mag) 55%, transparent); box-shadow: 0 0 22px color-mix(in srgb, var(--mag) 35%, transparent); animation: rspin 26s linear infinite; }
+  .rc3::after { content: ""; position: absolute; top: -2px; left: 50%; width: 4px; height: 4px; border-radius: 50%; background: #fff; box-shadow: 0 0 10px var(--mag); }
+  .rc4 { inset: 34px; border: 1px solid color-mix(in srgb, var(--acc1) 30%, transparent); animation: rspin 9s linear infinite; }
+  .rc-pulse { position: absolute; inset: 26%; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--acc1) 60%, transparent); animation: pulse 3.4s ease-out infinite; }
+  @keyframes pulse { 0% { transform: scale(.72); opacity: .9; } 100% { transform: scale(1.45); opacity: 0; } }
+  .rc-heart {
+    position: absolute; inset: 30%; border-radius: 50%;
+    background: radial-gradient(circle at 35% 32%, #fff, var(--acc1) 52%, var(--acc2) 100%);
+    box-shadow: 0 0 28px var(--acc1), 0 0 80px color-mix(in srgb, var(--acc1) 55%, transparent);
+    display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 2px;
+  }
+  .rc-heart .a { font-size: 10px; letter-spacing: 3px; color: rgba(3,20,34,.9); font-weight: 700; }
+  .rc-heart .b { font-size: 7px; letter-spacing: 2px; color: rgba(3,20,34,.75); }
+  @keyframes rspin { to { transform: rotate(360deg); } }
+
+  /* floating panels — orbital composition */
+  .fp {
+    position: absolute; z-index: 3;
+    border-radius: 18px; padding: 12px 15px;
+    background: linear-gradient(160deg, rgba(255,255,255,.13), rgba(255,255,255,.03));
+    -webkit-backdrop-filter: blur(24px) saturate(190%); backdrop-filter: blur(24px) saturate(190%);
+    border: 1px solid rgba(255,255,255,.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 24px 50px rgba(0,0,0,.45);
+    overflow: hidden;
+    transform: rotateX(5deg) rotateY(-7deg) translateZ(0);
+    transition: transform .5s cubic-bezier(.2,.8,.2,1), box-shadow .5s, opacity .5s;
+  }
+  .fp::before { content: ""; position: absolute; top: 0; left: 8%; right: 8%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent); }
+  .fp::after { content: ""; position: absolute; inset: -1px; border-radius: 18px; pointer-events: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc1) 12%, transparent); }
+  .fp .lab { font-size: 9px; letter-spacing: 2.5px; color: color-mix(in srgb, var(--acc1) 85%, transparent); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .fp .lab::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--acc1); box-shadow: 0 0 8px var(--acc1); }
+  .fp.lit {
+    transform: rotateX(0) rotateY(0) translateZ(20px) scale(var(--ls, 1.045));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 0 0 1px color-mix(in srgb, var(--acc1) 55%, transparent), 0 0 52px color-mix(in srgb, var(--acc1) 45%, transparent), 0 30px 60px rgba(0,0,0,.5);
+  }
+  .fp-hot   { top: 2%; right: 7%; width: 31%; transform-origin: right center; }
+  .fp-ai    { top: 27%; right: 8%; width: 33%; transform-origin: right center; }
+  .fp-fate  { bottom: 4%; right: 12%; width: 30%; transform-origin: right bottom; }
+  .fp-habit { top: 33%; left: 4%; width: 18%; transform-origin: left center; }
+  .fp-media { top: 4%; left: 5%; width: 17%; transform-origin: left center; }
+  .fp-space { bottom: 6%; left: 3%; width: 20%; transform-origin: left bottom; }
+
+  .tick { overflow: hidden; white-space: nowrap; font-size: 11px; color: color-mix(in srgb, var(--txt) 88%, transparent); }
+  .tick .in { display: inline-block; padding-right: 40px; animation: marquee 10s linear infinite; }
+  .tick .in em { font-style: normal; color: var(--acc1); margin-right: 24px; }
+  @keyframes marquee { to { transform: translateX(-50%); } }
+  .net { width: 100%; height: 76px; }
+  .net line { stroke: color-mix(in srgb, var(--acc1) 45%, transparent); stroke-width: 1; }
+  .net circle { fill: var(--acc1); filter: drop-shadow(0 0 4px var(--acc1)); }
+  .tok { display: flex; align-items: center; gap: 8px; font-size: 10px; color: color-mix(in srgb, var(--txt) 85%, transparent); margin-top: 6px; }
+  .tok .tb { flex: 1; height: 6px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .tok .tb i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--acc2), var(--acc1), var(--mag)); background-size: 200% 100%; animation: shimmer 2.4s linear infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  .bars { display: flex; align-items: flex-end; gap: 6px; height: 52px; }
+  .bars i { flex: 1; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, var(--acc1), color-mix(in srgb, var(--acc1) 18%, transparent)); transform-origin: bottom; animation: grow 1.6s ease-in-out infinite alternate; }
+  .bars i:nth-child(2) { animation-delay: .15s; } .bars i:nth-child(3) { animation-delay: .3s; }
+  .bars i:nth-child(4) { animation-delay: .45s; } .bars i:nth-child(5) { animation-delay: .6s; }
+  .bars i:nth-child(6) { animation-delay: .75s; }
+  @keyframes grow { from { transform: scaleY(.45); } to { transform: scaleY(1); } }
+  .minitile { border-radius: 10px; padding: 8px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); display: flex; flex-direction: column; gap: 4px; }
+  .minitile .g { font-size: 15px; filter: drop-shadow(0 0 8px color-mix(in srgb, var(--acc1) 60%, transparent)); }
+  .minitile .n { font-size: 9.5px; color: color-mix(in srgb, var(--txt) 85%, transparent); letter-spacing: 1px; }
+  .minitile .s { font-size: 8px; color: color-mix(in srgb, var(--acc1) 75%, transparent); }
+  .prog { height: 3px; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .prog i { display: block; height: 100%; width: 60%; background: linear-gradient(90deg, var(--acc2), var(--acc1)); animation: shimmer 3s linear infinite; }
+
+  /* dock */
+  .h-dock { position: relative; z-index: 6; display: flex; justify-content: center; gap: 8px; padding: 2px 24px 12px; flex-wrap: wrap; }
+  .h-dock .chip {
+    font-size: 11px; letter-spacing: 1px; color: color-mix(in srgb, var(--txt) 75%, transparent);
+    padding: 7px 14px; border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--acc1) 25%, transparent);
+    background: rgba(255,255,255,.05); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    cursor: pointer; transition: all .3s;
+  }
+  .h-dock .chip:hover { border-color: color-mix(in srgb, var(--acc1) 55%, transparent); }
+  .h-dock .chip.on { color: #04121f; background: linear-gradient(135deg, var(--acc1), var(--acc2)); border-color: #fff; box-shadow: 0 0 18px color-mix(in srgb, var(--acc1) 75%, transparent); font-weight: 600; }
+
+  .h-cmd {
+    position: relative; z-index: 6;
+    width: min(56%, 600px); margin: 0 auto 18px; padding: 12px 16px; border-radius: 14px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; letter-spacing: 1px; color: color-mix(in srgb, var(--txt) 72%, transparent);
+    background: linear-gradient(160deg, rgba(255,255,255,.10), rgba(255,255,255,.03));
+    -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%);
+    border: 1px solid rgba(255,255,255,.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 18px 40px rgba(0,0,0,.4);
+  }
+  .h-cmd .caret { color: var(--acc1); text-shadow: 0 0 10px var(--acc1); animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .h-cmd .wave { margin-left: auto; }
+
+  /* ==== interaction layer ==== */
+  .spot {
+    position: absolute; z-index: 7; width: 460px; height: 460px; border-radius: 50%;
+    background: radial-gradient(circle, color-mix(in srgb, var(--acc1) 13%, transparent), transparent 65%);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    opacity: .85;
+    transition: opacity .4s;
+    mix-blend-mode: screen;
+  }
+  .fp { cursor: pointer; }
+  .fp.lift {
+    transform: rotateX(0deg) rotateY(0deg) translateZ(40px) scale(var(--ls, 1.07));
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.5),
+      0 0 0 1px color-mix(in srgb, var(--acc1) 70%, transparent),
+      0 0 72px color-mix(in srgb, var(--acc1) 55%, transparent),
+      0 34px 70px rgba(0,0,0,.55);
+  }
+  .fp.lift .bars i { animation-duration: .9s; }
+  .fp.lift .tok .tb i { animation-duration: 1.2s; }
+  .fp.lift .net line { stroke: color-mix(in srgb, var(--acc1) 80%, transparent); }
+  .fp.dim {
+    opacity: .40;
+    transform: rotateX(6deg) rotateY(-8deg) translateZ(-50px) scale(.93);
+    filter: saturate(.72);
+  }
+  .core-hot .rc-pulse { animation-duration: 1.6s; }
+  .core-hot .rc1 { animation-duration: 8s; }
+  .core-hot .rc3 { animation-duration: 12s; }
+  .h-cmd.focus {
+    border-color: color-mix(in srgb, var(--acc1) 70%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.35),
+      0 0 44px color-mix(in srgb, var(--acc1) 42%, transparent),
+      0 18px 40px rgba(0,0,0,.4);
+  }
+
+  /* ==== realtime earth core ==== */
+  .earth-slot {
+    position: absolute;
+    inset: 30%;
+    z-index: 2;
+    border-radius: 50%;
+    overflow: hidden;
+  }
+  .css-earth {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    background: radial-gradient(circle at 32% 28%, rgba(170,235,255,.95), rgba(35,120,210,.88) 45%, rgba(6,28,66,.96) 80%);
+    box-shadow:
+      inset -14px -16px 36px rgba(0,8,26,.95),
+      0 0 42px color-mix(in srgb, var(--acc1) 55%, transparent),
+      0 0 90px color-mix(in srgb, var(--acc1) 22%, transparent);
+  }
+  .css-earth::before {
+    content: "";
+    position: absolute;
+    left: -45%; right: -45%; top: -45%; bottom: -45%;
+    background: repeating-linear-gradient(90deg, transparent 0 34px, color-mix(in srgb, var(--acc1) 16%, transparent) 34px 36px);
+    border-radius: 50%;
+    animation: rspin 30s linear infinite;
+  }
+  .css-earth::after {
+    content: "";
+    position: absolute;
+    left: -35%; right: -35%; top: -35%; bottom: -35%;
+    background: repeating-linear-gradient(0deg, transparent 0 30px, color-mix(in srgb, var(--acc1) 10%, transparent) 30px 32px);
+    border-radius: 50%;
+    animation: rspin 22s linear infinite reverse;
+  }
+  .earth-tag {
+    position: absolute;
+    left: 50%;
+    bottom: 5%;
+    transform: translateX(-50%);
+    z-index: 3;
+    font-size: 8px;
+    letter-spacing: 2.5px;
+    color: color-mix(in srgb, var(--acc1) 90%, transparent);
+    text-shadow: 0 0 8px color-mix(in srgb, var(--acc1) 60%, transparent);
+    white-space: nowrap;
+  }
+
+  /* ==== 时运 module ==== */
+  .fate-time {
+    font-size: 24px;
+    font-weight: 200;
+    letter-spacing: 3px;
+    color: var(--txt);
+    text-shadow: 0 0 18px color-mix(in srgb, var(--acc1) 55%, transparent);
+  }
+  .fate-lunar { font-size: 10px; color: color-mix(in srgb, var(--txt) 78%, transparent); letter-spacing: 1px; }
+  .fate-row { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; }
+  .hex-box {
+    width: 58px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--acc1) 35%, transparent);
+    background: rgba(255,255,255,.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 4px;
+    transition: all .4s;
+  }
+  .hex-box .gn { font-size: 13px; color: color-mix(in srgb, var(--acc1) 95%, transparent); text-shadow: 0 0 12px color-mix(in srgb, var(--acc1) 60%, transparent); }
+  .hex-box .gt { font-size: 8px; color: color-mix(in srgb, var(--txt) 70%, transparent); letter-spacing: 1px; }
+  .luck-wrap { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 6px; min-width: 0; }
+  .luck-line { display: flex; align-items: center; gap: 6px; font-size: 9px; color: color-mix(in srgb, var(--txt) 75%, transparent); }
+  .luck-bar { flex: 1; height: 6px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .luck-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--acc2), var(--acc1), var(--mag)); background-size: 200% 100%; animation: shimmer 2.4s linear infinite; transition: width .8s cubic-bezier(.2,.8,.2,1); }
+  .fate-tip { font-size: 9px; color: color-mix(in srgb, var(--acc1) 85%, transparent); letter-spacing: .5px; margin-top: 7px; }
+  .cast-btn {
+    margin-top: 8px;
+    font: 600 9.5px/1 "PingFang SC", sans-serif;
+    letter-spacing: 2px;
+    color: #04121f;
+    background: linear-gradient(135deg, var(--acc1), var(--acc2));
+    border: 1px solid rgba(255,255,255,.5);
+    border-radius: 999px;
+    padding: 6px 12px;
+    cursor: pointer;
+    box-shadow: 0 0 14px color-mix(in srgb, var(--acc1) 55%, transparent);
+    transition: transform .3s;
+  }
+  .cast-btn:hover { transform: scale(1.06); }
+  .fp-fate.casting .hex-box { animation: castflip .8s cubic-bezier(.2,.8,.2,1); }
+  .fp-fate.casting .hex-box .gn { animation: castglow .8s ease-in-out; }
+  @keyframes castflip {
+    0% { transform: rotateY(0) scale(1); }
+    45% { transform: rotateY(180deg) scale(.85); filter: brightness(1.8); }
+    100% { transform: rotateY(360deg) scale(1); }
+  }
+  @keyframes castglow {
+    0%, 100% { text-shadow: 0 0 10px color-mix(in srgb, var(--acc1) 50%, transparent); }
+    50% { text-shadow: 0 0 26px var(--acc1), 0 0 40px var(--mag); }
+  }
+
+  /* layer order: bg(0) < beams/links(1) < core(2) < panels(3) < top/dock/cmd(6) < overlays(7) */
+
+  /* ==== three-layer drawer system ==== */
+  .levels {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 3px;
+    z-index: 2;
+  }
+  .levels i {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--acc1) 30%, transparent);
+    transition: all .3s;
+  }
+  .levels i.on { background: var(--acc1); box-shadow: 0 0 6px var(--acc1); }
+  .expand-hint {
+    position: absolute;
+    right: 10px;
+    bottom: 8px;
+    font-size: 7.5px;
+    letter-spacing: 1.5px;
+    color: color-mix(in srgb, var(--acc1) 85%, transparent);
+    opacity: 0;
+    transition: opacity .3s;
+    z-index: 2;
+  }
+  .fp:hover .expand-hint, .fp.lit .expand-hint { opacity: 1; }
+
+  .drawer {
+    position: absolute;
+    z-index: 8;
+    top: 14px;
+    right: 14px;
+    bottom: 14px;
+    width: min(46%, 520px);
+    border-radius: 18px;
+    padding: 18px 18px 14px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    transform: translateX(calc(100% + 20px));
+    opacity: 0;
+    background: linear-gradient(165deg, rgba(10, 22, 40, .88), rgba(4, 10, 24, .94));
+    -webkit-backdrop-filter: blur(26px) saturate(180%);
+    backdrop-filter: blur(26px) saturate(180%);
+    border: 1px solid color-mix(in srgb, var(--acc1) 30%, transparent);
+    box-shadow: 0 0 60px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.18);
+    transition: transform .5s cubic-bezier(.2,.8,.2,1), opacity .4s;
+  }
+  .drawer.open { transform: translateX(0); opacity: 1; }
+  .dw-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .dw-head .t { font-size: 16px; letter-spacing: 3px; color: var(--txt); text-shadow: 0 0 16px color-mix(in srgb, var(--acc1) 55%, transparent); }
+  .dw-head .sp { flex: 1; }
+  .dw-x {
+    font-size: 14px; color: color-mix(in srgb, var(--txt) 65%, transparent);
+    cursor: pointer; padding: 4px 8px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05);
+  }
+  .dw-x:hover { color: var(--acc1); border-color: color-mix(in srgb, var(--acc1) 50%, transparent); }
+  .dw-block { margin-bottom: 12px; }
+  .dw-sub { font-size: 9px; letter-spacing: 2px; color: color-mix(in srgb, var(--acc1) 80%, transparent); margin-bottom: 7px; }
+  .dw-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10.5px; color: color-mix(in srgb, var(--txt) 82%, transparent);
+    padding: 6px 8px; border-radius: 8px;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
+    margin-bottom: 5px;
+  }
+  .dw-row .k { color: color-mix(in srgb, var(--acc1) 75%, transparent); flex-shrink: 0; }
+  .dw-row .v { margin-left: auto; color: color-mix(in srgb, var(--txt) 60%, transparent); font-size: 9px; }
+  .dw-chip {
+    font-size: 9.5px; letter-spacing: 1px; color: color-mix(in srgb, var(--acc1) 90%, transparent);
+    border: 1px solid color-mix(in srgb, var(--acc1) 35%, transparent);
+    border-radius: 999px; padding: 4px 9px; display: inline-block; margin: 2px 4px 2px 0;
+    background: rgba(255,255,255,.04);
+  }
+  .dw-bar { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .dw-bar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--acc2), var(--acc1)); }
+  .dw-deep-btn {
+    display: inline-block;
+    font: 600 10px/1 "PingFang SC", sans-serif;
+    letter-spacing: 2px;
+    color: #04121f;
+    background: linear-gradient(135deg, var(--acc1), var(--acc2));
+    border-radius: 999px;
+    padding: 8px 14px;
+    cursor: pointer;
+    box-shadow: 0 0 16px color-mix(in srgb, var(--acc1) 55%, transparent);
+  }
+  .dw-deep-btn:hover { transform: scale(1.05); }
+
+  .deep {
+    position: absolute;
+    z-index: 9;
+    inset: 0;
+    padding: 20px 26px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    opacity: 0;
+    pointer-events: none;
+    background: linear-gradient(168deg, rgba(5, 12, 26, .96), rgba(2, 5, 14, .98));
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    backdrop-filter: blur(30px) saturate(180%);
+    transition: opacity .45s;
+  }
+  .deep.open { opacity: 1; pointer-events: auto; }
+  .deep-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .deep-head .t { font-size: 22px; letter-spacing: 4px; font-weight: 200; color: var(--txt); text-shadow: 0 0 22px color-mix(in srgb, var(--acc1) 60%, transparent); }
+  .deep-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .deep-card {
+    border-radius: 14px; padding: 12px 14px;
+    background: linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+    -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+    border: 1px solid rgba(255,255,255,.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.2);
+  }
+  .deep-card .d-t { font-size: 10px; letter-spacing: 2px; color: color-mix(in srgb, var(--acc1) 85%, transparent); margin-bottom: 8px; }
+  .deep-card .d-line { font-size: 10.5px; color: color-mix(in srgb, var(--txt) 82%, transparent); margin-bottom: 6px; line-height: 1.65; }
+  .deep-card .d-bar { height: 6px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; margin: 4px 0 8px; }
+  .deep-card .d-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--acc2), var(--acc1), var(--mag)); }
+  .deep-back {
+    font-size: 10px; letter-spacing: 2px; color: color-mix(in srgb, var(--acc1) 90%, transparent);
+    border: 1px solid color-mix(in srgb, var(--acc1) 35%, transparent);
+    border-radius: 999px; padding: 6px 12px; cursor: pointer;
+  }
+  .deep-back:hover { background: rgba(255,255,255,.06); }
+
+  /* ==== apple-style expand + drag ==== */
+  .fp { touch-action: none; user-select: none; }
+  .fp.dragging { transition: none !important; cursor: grabbing; box-shadow: 0 30px 70px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.4); }
+  .fp.expanded { z-index: 10; overflow-y: auto; padding: 16px 18px 58px; }
+  .fp.expanded-3 { z-index: 11; }
+  .fp.expanded .lab { margin-bottom: 12px; }
+  .fp.expanded .levels, .fp.expanded .drag-hint { display: none; }
+  .fp.expanded .dw-block:last-child { margin-bottom: 4px; }
+  .fp.expanded .deep-grid { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+  .fp.expanded .exp-more { bottom: 14px; left: 18px; }
+  .fp.expanded .exp-close { top: 12px; right: 16px; }
+  .drag-hint {
+    position: absolute;
+    bottom: 8px;
+    left: 10px;
+    z-index: 2;
+    font-size: 7.5px;
+    letter-spacing: 1.5px;
+    color: color-mix(in srgb, var(--acc1) 85%, transparent);
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(8, 20, 40, .55);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(120, 210, 255, .22);
+    opacity: 0;
+    transition: opacity .3s;
+    pointer-events: none;
+  }
+  .fp:hover .drag-hint, .fp.dragging .drag-hint { opacity: 1; }
+  .expand-hint {
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(8, 20, 40, .55);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(120, 210, 255, .22);
+  }
+  .exp-close {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    z-index: 5;
+    font-size: 13px;
+    color: color-mix(in srgb, var(--txt) 65%, transparent);
+    cursor: pointer;
+    padding: 3px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+  }
+  .exp-close:hover { color: var(--acc1); border-color: color-mix(in srgb, var(--acc1) 55%, transparent); }
+  .exp-more {
+    position: absolute;
+    bottom: 10px;
+    left: 12px;
+    z-index: 5;
+    font: 600 10px/1 "PingFang SC", sans-serif;
+    letter-spacing: 2px;
+    color: #04121f;
+    background: linear-gradient(135deg, var(--acc1), var(--acc2));
+    border-radius: 999px;
+    padding: 8px 13px;
+    cursor: pointer;
+    box-shadow: 0 0 16px color-mix(in srgb, var(--acc1) 55%, transparent);
+  }
+  .exp-more:hover { transform: scale(1.05); }
+
+  /* ==== chat console + command input ==== */
+  .fp-chat { top: 2%; left: 35%; width: 22%; transform-origin: center; }
+  .cmd-input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: color-mix(in srgb, var(--txt) 90%, transparent);
+    font: 13px/1.4 "PingFang SC", "Hiragino Sans GB", sans-serif;
+    letter-spacing: 1px;
+    caret-color: var(--acc1);
+  }
+  .cmd-input::placeholder { color: color-mix(in srgb, var(--txt) 40%, transparent); }
+  .chat-console {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 100%;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .cc-msg {
+    max-width: 88%;
+    border-radius: 12px;
+    padding: 8px 11px;
+    font-size: 11px;
+    line-height: 1.7;
+    color: color-mix(in srgb, var(--txt) 90%, transparent);
+  }
+  .cc-msg.bot {
+    align-self: flex-start;
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.12);
+  }
+  .cc-msg.user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--acc2) 75%, transparent), color-mix(in srgb, var(--acc1) 55%, transparent));
+    border: 1px solid rgba(255,255,255,.25);
+  }
+  .cc-hint { font-size: 9px; letter-spacing: 1.5px; color: color-mix(in srgb, var(--acc1) 70%, transparent); margin-top: 8px; }
+  .cc-tip { font-size: 8.5px; color: color-mix(in srgb, var(--txt) 45%, transparent); letter-spacing: 1px; }
+</style>
+
+<h2>全息终端 v10 · 实时真实数据</h2>
+<p class="subtitle">全部模块已接入真实能力：热点 = 多源实时新闻；AI = arXiv 论文 + Hugging Face 模型榜；洞察 = 真实记录你的使用习惯；影音 = 可在线播放；空间 = 真实项目文件；时运 = 周易卦辞原文；对话 = Codex 智能体。</p>
+
+<div class="envbar">
+  <span class="envlabel">环境调色</span>
+  <button class="env-btn on" data-env="auto">智能跟随</button>
+  <button class="env-btn" data-env="dawn">清晨</button>
+  <button class="env-btn" data-env="noon">白昼</button>
+  <button class="env-btn" data-env="dusk">黄昏</button>
+  <button class="env-btn" data-env="night">深夜</button>
+  <span class="einfo" id="envinfo">智能模式：按当前系统时间匹配</span>
+</div>
+
+<div class="holo tint-night" id="holo">
+  <div class="grid-floor"></div>
+  <div class="beam b1"></div>
+  <div class="beam b2"></div>
+  <div class="scanline"></div>
+  <div class="particles" id="particles"></div>
+  <div class="spot" id="spot"></div>
+  <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+
+  <div class="h-top">
+    <div class="h-clock">
+      <div class="c mono" id="clock">09:41:22</div>
+    </div>
+    <div class="sp"></div>
+    <div class="h-chip clickable" id="autoLayoutBtn" onclick="window.toggleAutoLayout && window.toggleAutoLayout()">✦ 自动排版</div>
+    <div class="h-chip"><span class="wave"><i></i><i></i><i></i></span> 语音待命</div>
+    <div class="h-chip"><span class="dot"></span> 系统在线</div>
+  </div>
+
+  <div class="h-main">
+    <div class="orbit-el oe1"></div>
+    <div class="orbit-el oe2"></div>
+    <svg class="links" viewBox="0 0 1000 700" preserveAspectRatio="none">
+      <line data-mode="chat" x1="270" y1="360" x2="455" y2="90"/>
+      <line data-mode="hot" x1="270" y1="360" x2="760" y2="95"/>
+      <line data-mode="ai" x1="270" y1="360" x2="735" y2="315"/>
+      <line data-mode="habit" x1="270" y1="360" x2="180" y2="300"/>
+      <line data-mode="media" x1="270" y1="360" x2="155" y2="150"/>
+      <line data-mode="space" x1="270" y1="360" x2="155" y2="600"/>
+      <line data-mode="fate" x1="270" y1="360" x2="740" y2="610"/>
+    </svg>
+    <div class="core-wrap" id="coreWrap">
+      <div class="rc-ring rc1"></div>
+      <div class="rc-pulse"></div>
+      <div class="earth-slot" id="earthSlot">
+        <div class="css-earth" id="cssEarth"></div>
+      </div>
+      <div class="earth-tag mono" id="earthTag">REALTIME EARTH</div>
+    </div>
+
+    <div class="fp fp-chat" data-mode="chat">
+      <div class="lab">对话 · J.A.R.V.I.S</div>
+      <div class="cc-msg bot">先生，我在。随时听候差遣。</div>
+      <div class="cc-tip">在底部指令栏输入，或说“打开音乐 / 今日运势”。</div>
+    </div>
+
+    <div class="fp fp-hot" data-mode="hot">
+      <div class="lab">全球热点 · LIVE</div>
+      <div class="tick"><div class="in">
+        <em>▸ 多模态模型发布新架构</em>
+        <em>▸ 商业航天完成轨道对接</em>
+        <em>▸ 芯片产能突破纪录</em>
+        <em>▸ 量子计算新进展</em>
+        <em>▸ 多模态模型发布新架构</em>
+        <em>▸ 商业航天完成轨道对接</em>
+      </div></div>
+    </div>
+
+    <div class="fp fp-ai lit" data-mode="ai">
+      <div class="lab">AI 模型 · 架构</div>
+      <svg class="net" viewBox="0 0 220 80">
+        <line x1="22" y1="20" x2="86" y2="14"/><line x1="22" y1="20" x2="86" y2="40"/>
+        <line x1="22" y1="20" x2="86" y2="66"/><line x1="22" y1="52" x2="86" y2="14"/>
+        <line x1="22" y1="52" x2="86" y2="40"/><line x1="22" y1="52" x2="86" y2="66"/>
+        <line x1="22" y1="70" x2="86" y2="40"/><line x1="22" y1="70" x2="86" y2="66"/>
+        <line x1="86" y1="14" x2="152" y2="28"/><line x1="86" y1="14" x2="152" y2="62"/>
+        <line x1="86" y1="40" x2="152" y2="28"/><line x1="86" y1="40" x2="152" y2="62"/>
+        <line x1="86" y1="66" x2="152" y2="28"/><line x1="86" y1="66" x2="152" y2="62"/>
+        <line x1="152" y1="28" x2="202" y2="24"/><line x1="152" y1="28" x2="202" y2="54"/>
+        <line x1="152" y1="62" x2="202" y2="24"/><line x1="152" y1="62" x2="202" y2="54"/>
+        <circle cx="22" cy="20" r="4"/><circle cx="22" cy="52" r="4"/><circle cx="22" cy="70" r="4"/>
+        <circle cx="86" cy="14" r="4"/><circle cx="86" cy="40" r="4"/><circle cx="86" cy="66" r="4"/>
+        <circle cx="152" cy="28" r="4"/><circle cx="152" cy="62" r="4"/>
+        <circle cx="202" cy="24" r="4"/><circle cx="202" cy="54" r="4"/>
+      </svg>
+      <div class="tok">输入 <span class="tb"><i style="width:72%"></i></span> 12.4k</div>
+      <div class="tok">输出 <span class="tb"><i style="width:34%"></i></span> 3.2k</div>
+    </div>
+
+    <div class="fp fp-habit" data-mode="habit">
+      <div class="lab">行为洞察</div>
+      <div class="bars">
+        <i style="height:58%"></i><i style="height:78%"></i><i style="height:62%"></i>
+        <i style="height:92%"></i><i style="height:100%"></i><i style="height:84%"></i>
+      </div>
+      <div id="habitSummary" style="font-size:10px;color:color-mix(in srgb,var(--txt) 78%,transparent);margin-top:6px">正在记录你的使用习惯…</div>
+    </div>
+
+    <div class="fp fp-media" data-mode="media">
+      <div class="lab">影音</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="minitile"><div class="g">🎬</div><div class="n">视频</div><div class="s">回放</div><div class="prog"><i></i></div></div>
+        <div class="minitile"><div class="g">🎵</div><div class="n">音乐</div><div class="s">播放中</div><div class="prog"><i style="width:35%"></i></div></div>
+      </div>
+    </div>
+
+    <div class="fp fp-space" data-mode="space">
+      <div class="lab">空间</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="minitile"><div class="g">📄</div><div class="n">文档</div><div class="s">3 份待阅</div></div>
+        <div class="minitile"><div class="g">🎮</div><div class="n">游戏</div><div class="s">入口</div></div>
+        <div class="minitile"><div class="g">🗂</div><div class="n">工作空间</div><div class="s">2 任务</div></div>
+      </div>
+    </div>
+
+    <div class="fp fp-fate" data-mode="fate">
+      <div class="lab">时运 · 玄学</div>
+      <div class="fate-time mono" id="fateTime">09:41:22</div>
+      <div class="fate-lunar" id="fateLunar">农历 乙巳年 六月十四</div>
+      <div class="fate-row">
+        <div class="hex-box">
+          <div class="gn" id="hexName">水火既济</div>
+          <div class="gt" id="hexNo">第 63 卦</div>
+        </div>
+        <div class="luck-wrap">
+          <div class="luck-line">今日运势 <span class="luck-bar"><i id="luckFill" style="width:64%"></i></span> <span id="luckNum" class="mono">64</span></div>
+          <div class="luck-line">宜 <span id="fateYi" style="color:color-mix(in srgb,var(--acc1) 90%, transparent)">静观 · 整理</span></div>
+        </div>
+      </div>
+      <div class="fate-tip" id="fateTip">宜静观，忌冒进。适合整理今天的信息。</div>
+      <button class="cast-btn" id="castBtn">✦ 起卦</button>
+    </div>
+  </div>
+
+  <div class="h-dock">
+    <div class="chip" data-mode="chat">对话</div>
+    <div class="chip" data-mode="hot">热点</div>
+    <div class="chip on" data-mode="ai">AI 模型</div>
+    <div class="chip" data-mode="habit">洞察</div>
+    <div class="chip" data-mode="media">影音</div>
+    <div class="chip" data-mode="space">空间</div>
+    <div class="chip" data-mode="fate">时运</div>
+  </div>
+
+  <div class="h-cmd">
+    <span class="caret mono">▸</span>
+    <input id="cmdInput" class="cmd-input" type="text" placeholder="说点什么，先生…" autocomplete="off" spellcheck="false" />
+    <span class="wave"><i></i><i></i><i></i><i></i><i></i></span>
+  </div>
+
+</div>
+
+<script>
+  (function () {
+    var holo = document.getElementById('holo');
+    var PALETTES = { dawn: '清晨', noon: '白昼', dusk: '黄昏', night: '深夜' };
+    function hourToPalette(h) {
+      if (h >= 5 && h < 8) return 'dawn';
+      if (h >= 8 && h < 17) return 'noon';
+      if (h >= 17 && h < 20) return 'dusk';
+      return 'night';
+    }
+    function setMode(m) {
+      var chips = document.querySelectorAll('.h-dock .chip');
+      for (var i = 0; i < chips.length; i++) {
+        chips[i].className = 'chip' + (chips[i].getAttribute('data-mode') === m ? ' on' : '');
+      }
+      var fps = document.querySelectorAll('.fp');
+      for (var j = 0; j < fps.length; j++) {
+        fps[j].classList.toggle('lit', fps[j].getAttribute('data-mode') === m);
+      }
+      var lines = document.querySelectorAll('.links line');
+      for (var k = 0; k < lines.length; k++) {
+        lines[k].classList.toggle('on', lines[k].getAttribute('data-mode') === m);
+      }
+      var cmd = holo.querySelector('.h-cmd');
+      cmd.classList.toggle('focus', m === 'chat');
+      if (typeof syncDim === 'function') syncDim();
+    }
+    var fps = document.querySelectorAll('.fp');
+    function syncDim() {
+      var lit = document.querySelector('.fp.lit');
+      var lifted = document.querySelector('.fp.lift');
+      for (var i = 0; i < fps.length; i++) {
+        var on = (lit && fps[i] === lit) || (lifted && fps[i] === lifted);
+        fps[i].classList.toggle('dim', !on);
+      }
+    }
+    for (var h = 0; h < fps.length; h++) {
+      (function (f) {
+        f.addEventListener('mouseenter', function () {
+          for (var a = 0; a < fps.length; a++) fps[a].classList.remove('lift');
+          f.classList.add('lift');
+          holo.classList.add('core-hot');
+          syncDim();
+        });
+        f.addEventListener('mouseleave', function () {
+          f.classList.remove('lift');
+          holo.classList.remove('core-hot');
+          syncDim();
+        });
+        f.addEventListener('click', function () {
+          if (f.getAttribute('data-suppress') === '1') { f.removeAttribute('data-suppress'); return; }
+          if (window.onPanelClick) window.onPanelClick(f.getAttribute('data-mode'));
+          else setMode(f.getAttribute('data-mode'));
+        });
+      })(fps[h]);
+    }
+    var spot = document.getElementById('spot');
+    var stage = holo.querySelector('.h-main');
+    var holoRect = null;
+    holo.addEventListener('mousemove', function (e) {
+      holoRect = holo.getBoundingClientRect();
+      var x = (e.clientX - holoRect.left) / holoRect.width;
+      var y = (e.clientY - holoRect.top) / holoRect.height;
+      spot.style.left = (x * 100) + '%';
+      spot.style.top = (y * 100) + '%';
+      spot.style.opacity = '0.9';
+      var rx = (0.5 - y) * 5;
+      var ry = (x - 0.5) * 7;
+      stage.style.transform = 'rotateX(' + rx + 'deg) rotateY(' + ry + 'deg)';
+    });
+    holo.addEventListener('mouseleave', function () {
+      stage.style.transform = 'rotateX(0deg) rotateY(0deg)';
+      spot.style.opacity = '0';
+    });
+    var pc = document.getElementById('particles');
+    for (var n = 0; n < 30; n++) {
+      var s = document.createElement('i');
+      s.className = 'p' + (n % 6 === 0 ? ' big' : '');
+      s.style.left = (Math.random() * 100) + '%';
+      s.style.top = (Math.random() * 100) + '%';
+      var d = 5 + Math.random() * 7;
+      s.style.animationDuration = d + 's';
+      s.style.animationDelay = (-Math.random() * d) + 's';
+      pc.appendChild(s);
+    }
+    var clk = document.getElementById('clock');
+    function tick() {
+      var now = new Date();
+      clk.textContent = now.toTimeString().slice(0, 8);
+      var fateTime = document.getElementById('fateTime');
+      if (fateTime) fateTime.textContent = now.toTimeString().slice(0, 8);
+    }
+    setInterval(tick, 1000);
+    tick();
+    setInterval(function () {
+      if (holo.getAttribute('data-env') === 'auto') {
+        setEnv('auto');
+      }
+    }, 60000);
+    window.setMode = setMode;
+    window.setEnv = function (env) {
+      holo.setAttribute('data-env', env);
+      var btns = document.querySelectorAll('.env-btn');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].className = 'env-btn' + (btns[i].getAttribute('data-env') === env ? ' on' : '');
+      }
+      var info = document.getElementById('envinfo');
+      if (env === 'auto') {
+        holo.className = 'holo tint-' + hourToPalette(new Date().getHours());
+        info.textContent = '智能模式：按当前系统时间匹配（正式版含深浅色与壁纸背景）';
+      } else {
+        holo.className = 'holo tint-' + env;
+        info.textContent = '预览模式：' + PALETTES[env] + '色调';
+      }
+    };
+    holo.setAttribute('data-env', 'auto');
+    setEnv('auto');
+  })();
+</script>
+
+<script src="https://unpkg.com/lunar-javascript@1.6.12/lunar.js"></script>
+<script>
+  (function () {
+    var HEX = ['乾为天','坤为地','水雷屯','山水蒙','水天需','天水讼','地水师','水地比','风天小畜','天泽履','地天泰','天地否','天火同人','火天大有','地山谦','雷地豫','泽雷随','山风蛊','地泽临','风地观','火雷噬嗑','山火贲','山地剥','地雷复','天雷无妄','山天大畜','山雷颐','泽风大过','坎为水','离为火','泽山咸','雷风恒','天山遁','雷天大壮','火地晋','地火明夷','风火家人','火泽睽','水山蹇','雷水解','山泽损','风雷益','泽天夬','天风姤','泽地萃','地风升','泽水困','水风井','泽火革','火风鼎','震为雷','艮为山','风山渐','雷泽归妹','雷火丰','火山旅','巽为风','兑为泽','风水涣','水泽节','风泽中孚','雷山小过','水火既济','火水未济'];
+    var GUA_TXT = ['元亨利贞。','元亨，利牝马之贞。君子有攸往，先迷后得主，利西南得朋，东北丧朋。安贞吉。','元亨利贞。勿用有攸往，利建侯。','亨。匪我求童蒙，童蒙求我。初筮告，再三渎，渎则不告。利贞。','有孚，光亨，贞吉，利涉大川。','有孚窒惕，中吉，终凶。利见大人，不利涉大川。','贞，丈人吉，无咎。','吉。原筮，元永贞，无咎。不宁方来，后夫凶。','亨。密云不雨，自我西郊。','履虎尾，不咥人，亨。','小往大来，吉亨。','否之匪人，不利君子贞，大往小来。','同人于野，亨。利涉大川，利君子贞。','元亨。','亨，君子有终。','利建侯行师。','元亨利贞，无咎。','元亨，利涉大川。先甲三日，后甲三日。','元亨利贞。至于八月有凶。','盥而不荐，有孚颙若。','亨。利用狱。','亨，小利有攸往。','不利有攸往。','亨。出入无疾，朋来无咎。反复其道，七日来复，利有攸往。','元亨利贞。其匪正有眚，不利有攸往。','利贞。不家食吉，利涉大川。','贞吉。观颐，自求口实。','栋桡，利有攸往，亨。','习坎，有孚，维心亨，行有尚。','利贞，亨。畜牝牛吉。','亨，利贞。取女吉。','亨，无咎，利贞。利有攸往。','亨，小利贞。','利贞。','康侯用锡马蕃庶，昼日三接。','利艰贞。','利女贞。','小事吉。','利西南，不利东北。利见大人，贞吉。','利西南。无所往，其来复吉。有攸往，夙吉。','有孚，元吉，无咎，可贞，利有攸往。曷之用？二簋可用享。','利有攸往，利涉大川。','扬于王庭，孚号有厉。告自邑，不利即戎，利有攸往。','女壮，勿用取女。','亨，王假有庙。利见大人，亨，利贞。用大牲吉，利有攸往。','元亨，用见大人，勿恤，南征吉。','亨，贞，大人吉，无咎。有言不信。','改邑不改井，无丧无得，往来井井。汔至亦未繘井，羸其瓶，凶。','己日乃孚，元亨利贞，悔亡。','元吉，亨。','亨。震来虩虩，笑言哑哑。震惊百里，不丧匕鬯。','艮其背，不获其身。行其庭，不见其人，无咎。','女归吉，利贞。','征凶，无攸利。','亨，王假之。勿忧，宜日中。','小亨，旅贞吉。','小亨，利有攸往，利见大人。','亨，利贞。','亨。王假有庙，利涉大川，利贞。','亨。苦节，不可贞。','豚鱼吉，利涉大川，利贞。','亨，利贞。可小事，不可大事。飞鸟遗之音，不宜上，宜下，大吉。','亨小，利贞。初吉终乱。','亨。小狐汔济，濡其尾，无攸利。'];
+    var TIPS = ['宜静观，忌冒进。适合整理今天的信息。','顺势而为，主动出击。今天适合推进关键事项。','守正出新，先稳后进。','宜合作，忌独断。多听他人意见。','小步快跑，积累优势。','静待时机，不宜大动。','复盘旧事，清扫积弊。','以柔克刚，借力打力。','专注当下，减少分心。','广结善缘，信息即资源。','宜学习，宜钻研，今日吸收力强。','守时而动，准备周全再出手。'];
+    var YI = ['静观 · 整理','洽谈 · 提案','复盘 · 规划','阅读 · 学习','健身 · 出行','沟通 · 协作','创作 · 输出','归档 · 断舍离'];
+    window.HEX = HEX;
+    window.GUA_TXT = GUA_TXT;
+    window.__currentHex = { idx: 0, luck: 60 };
+    function seedOf(d) {
+      return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+    }
+    function fmtLunar() {
+      var el = document.getElementById('fateLunar');
+      if (!el) return;
+      var now = new Date();
+      if (window.Lunar) {
+        try {
+          var l = Lunar.fromDate(now);
+          el.textContent = '农历 ' + l.getYearInChinese() + '年' + l.getMonthInChinese() + '月' + l.getDayInChinese();
+          var yi = (l.getDayYi && l.getDayYi()) || [];
+          var yiEl = document.getElementById('fateYi');
+          if (yiEl && yi.length) yiEl.textContent = yi.slice(0, 4).join(' · ');
+          return;
+        } catch (e) {}
+      }
+      el.textContent = '农历（离线库未加载）';
+    }
+    function rollFate() {
+      var now = new Date();
+      var seed = seedOf(now) + Math.floor(now.getMinutes() / 5);
+      var idx = Math.abs(seed) % 64;
+      var nameEl = document.getElementById('hexName');
+      var noEl = document.getElementById('hexNo');
+      if (nameEl) nameEl.textContent = HEX[idx];
+      if (noEl) noEl.textContent = '第 ' + (idx + 1) + ' 卦';
+      var luck = (Math.abs(seed) * 7 + 11) % 101;
+      var fill = document.getElementById('luckFill');
+      var num = document.getElementById('luckNum');
+      if (fill) fill.style.width = luck + '%';
+      if (num) num.textContent = luck;
+      var tip = document.getElementById('fateTip');
+      if (tip) tip.textContent = '「' + HEX[idx] + '」' + GUA_TXT[idx];
+      window.__currentHex = { idx: idx, luck: luck };
+      if (!window.Lunar) {
+        var yi = document.getElementById('fateYi');
+        if (yi) yi.textContent = YI[Math.abs(seed) % YI.length] + '（演示）';
+      }
+    }
+    var fatePanel = document.querySelector('.fp-fate');
+    var castBtn = document.getElementById('castBtn');
+    function cast() {
+      if (!fatePanel) return;
+      fatePanel.classList.add('casting');
+      setTimeout(function () {
+        rollFate();
+        fatePanel.classList.remove('casting');
+      }, 850);
+    }
+    if (castBtn) castBtn.addEventListener('click', function (e) { e.stopPropagation(); cast(); });
+    rollFate();
+    fmtLunar();
+    if (window.Lunar) setInterval(fmtLunar, 60000);
+
+    /* 图层自动避让：模块不与顶栏/底部轨道/指令栏重叠，动态下移 */
+    function resolveOverlaps() {
+      var main = document.querySelector('.h-main');
+      var topBar = document.querySelector('.h-top');
+      var dock = document.querySelector('.h-dock');
+      var cmd = document.querySelector('.h-cmd');
+      if (!main) return;
+      var fps = [].slice.call(document.querySelectorAll('.fp'));
+      fps.forEach(function (f) {
+        var dp = f.getAttribute('data-pos');
+        if (dp !== 'user' && dp !== 'auto') f.style.top = '';
+      });
+      var mr = main.getBoundingClientRect();
+      var reserved = [];
+      if (topBar) {
+        var tr = topBar.getBoundingClientRect();
+        reserved.push({ top: tr.bottom - mr.top + 14, bottom: 1e9 });
+      }
+      if (dock) {
+        var dr = dock.getBoundingClientRect();
+        reserved.push({ top: 0, bottom: dr.top - mr.top - 14 });
+      }
+      if (cmd) {
+        var cr = cmd.getBoundingClientRect();
+        reserved.push({ top: 0, bottom: cr.top - mr.top - 14 });
+      }
+      function rectOf(f) {
+        var r = f.getBoundingClientRect();
+        return { top: r.top - mr.top, bottom: r.bottom - mr.top };
+      }
+      fps.forEach(function (f) {
+        var rr = rectOf(f);
+        for (var i = 0; i < reserved.length; i++) {
+          if (rr.top < reserved[i].top && rr.bottom > reserved[i].top) {
+            var shift = reserved[i].top - rr.top + 4;
+            f.style.top = (parseFloat(getComputedStyle(f).top) + shift) + 'px';
+            rr = rectOf(f);
+          }
+        }
+      });
+    }
+    window.addEventListener('resize', resolveOverlaps);
+    setTimeout(resolveOverlaps, 400);
+  })();
+</script>
+
+<script>
+  (function () {
+    var holo = document.getElementById('holo');
+    var drawer = document.getElementById('drawer');
+    var deep = document.getElementById('deep');
+    var META = {
+      chat:  { name: '对话', icon: '◉' },
+      hot:   { name: '全球热点', icon: '◎' },
+      ai:    { name: 'AI 模型', icon: '◈' },
+      habit: { name: '行为洞察', icon: '▤' },
+      media: { name: '影音', icon: '▶' },
+      space: { name: '空间', icon: '▣' },
+      fate:  { name: '时运', icon: '☯' }
+    };
+    function bar(w) { return '<div class="dw-bar"><i style="width:' + w + '%"></i></div>'; }
+
+    var DETAIL = {
+      chat: function () {
+        return '<div class="dw-block"><div class="dw-sub">快速指令</div>' +
+          ['报时', '今日运势', '全球热点', '切换到音乐', '打开工作空间'].map(function (s) { return '<span class="dw-chip">' + s + '</span>'; }).join('') +
+          '</div><div class="dw-block"><div class="dw-sub">最近会话</div>' +
+          '<div class="dw-row"><span class="k">09:12</span> 帮我整理今天的热点<span class="v">2 条未读</span></div>' +
+          '<div class="dw-row"><span class="k">08:47</span> 今天运势怎么样？<span class="v">已回复</span></div>' +
+          '<div class="dw-row"><span class="k">昨天</span> 打开游戏登录界面<span class="v">已执行</span></div></div>';
+      },
+      hot: function () {
+        return '<div class="dw-block"><div class="dw-sub">热点 TOP 6 · 演示数据</div>' +
+          '<div class="dw-row"><span class="k">01</span> 多模态模型发布新架构<span class="v">科技 · 2m</span></div>' +
+          '<div class="dw-row"><span class="k">02</span> 商业航天完成轨道对接<span class="v">航天 · 8m</span></div>' +
+          '<div class="dw-row"><span class="k">03</span> 芯片产能突破纪录<span class="v">财经 · 15m</span></div>' +
+          '<div class="dw-row"><span class="k">04</span> 量子计算新进展<span class="v">科技 · 22m</span></div>' +
+          '<div class="dw-row"><span class="k">05</span> 新能源效率提升<span class="v">能源 · 31m</span></div>' +
+          '<div class="dw-row"><span class="k">06</span> 国际气候峰会闭幕<span class="v">国际 · 44m</span></div></div>';
+      },
+      ai: function () {
+        return '<div class="dw-block"><div class="dw-sub">在榜模型</div>' +
+          '<div class="dw-row"><span class="k">v6.2</span> 多模态旗舰<span class="v">1.8T · 128K</span></div>' +
+          '<div class="dw-row"><span class="k">开源</span> 24B 新秀<span class="v">24B · 64K</span></div>' +
+          '<div class="dw-row"><span class="k">图像</span> 生成模型 X<span class="v">4K · 实时</span></div>' +
+          '</div><div class="dw-block"><div class="dw-sub">今日 Token 用量</div>' +
+          '<div class="dw-row">输入 ' + bar(72) + '<span class="v">12.4k</span></div>' +
+          '<div class="dw-row">输出 ' + bar(34) + '<span class="v">3.2k</span></div>' +
+          '<div class="dw-row">峰值 ' + bar(55) + '<span class="v">87%</span></div></div>';
+      },
+      habit: function () {
+        return '<div class="dw-block"><div class="dw-sub">本周专注</div>' +
+          '<div class="dw-row">周一 ' + bar(52) + '<span class="v">4.2h</span></div>' +
+          '<div class="dw-row">周二 ' + bar(68) + '<span class="v">5.5h</span></div>' +
+          '<div class="dw-row">周三 ' + bar(64) + '<span class="v">5.1h</span></div>' +
+          '<div class="dw-row">周四 ' + bar(80) + '<span class="v">6.4h</span></div>' +
+          '</div><div class="dw-block"><div class="dw-sub">时段分布</div>' +
+          '<div class="dw-row">上午 ' + bar(45) + '<span class="v">2.2h</span></div>' +
+          '<div class="dw-row">下午 ' + bar(70) + '<span class="v">3.4h</span></div>' +
+          '<div class="dw-row">晚间 ' + bar(25) + '<span class="v">1.2h</span></div></div>';
+      },
+      media: function () {
+        return '<div class="dw-block"><div class="dw-sub">播放队列</div>' +
+          '<div class="dw-row">🎬 发布会回放<span class="v">已播 62%</span></div>' +
+          '<div class="dw-row">🎵 深夜代码播放列表<span class="v">播放中</span></div>' +
+          '<div class="dw-row">🎬 3D 建模教程<span class="v">未播</span></div>' +
+          '</div><div class="dw-block"><div class="dw-sub">快捷操作</div>' +
+          '<span class="dw-chip">播放</span><span class="dw-chip">暂停</span><span class="dw-chip">下一首</span><span class="dw-chip">投屏</span></div>';
+      },
+      space: function () {
+        return '<div class="dw-block"><div class="dw-sub">进行中的任务</div>' +
+          '<div class="dw-row"><span class="k">▣</span> 贾维斯终端 Phase 1<span class="v">75%</span></div>' +
+          '<div class="dw-row"><span class="k">▣</span> 山海铸行 存档恢复<span class="v">进行中</span></div>' +
+          '<div class="dw-row"><span class="k">▣</span> Blender 角色建模<span class="v">40%</span></div>' +
+          '</div><div class="dw-block"><div class="dw-sub">入口</div>' +
+          '<span class="dw-chip">📄 文档</span><span class="dw-chip">🎮 游戏</span><span class="dw-chip">🗂 工作区</span><span class="dw-chip">🗄 素材库</span></div>';
+      },
+      fate: function () {
+        return '<div class="dw-block"><div class="dw-sub">今日八字 · 演示</div>' +
+          '<div class="dw-row"><span class="k">年柱</span> 丙午<span class="v">火</span></div>' +
+          '<div class="dw-row"><span class="k">月柱</span> 乙未<span class="v">木土</span></div>' +
+          '<div class="dw-row"><span class="k">日柱</span> 甲申<span class="v">木金</span></div>' +
+          '<div class="dw-row"><span class="k">时柱</span> 壬申<span class="v">水金</span></div>' +
+          '</div><div class="dw-block"><div class="dw-sub">今日宜忌</div>' +
+          '<span class="dw-chip">宜 静观</span><span class="dw-chip">宜 整理</span><span class="dw-chip">宜 学习</span><span class="dw-chip">忌 冒进</span></div>';
+      }
+    };
+
+    var DEEP = {
+      chat: function () {
+        return '<div class="chat-console" id="chatConsole">' +
+          '<div class="cc-msg bot">先生，我在。随时听候差遣。</div>' +
+          '</div><div class="cc-hint">▸ 在底部指令栏输入，指令直达智能体核心；回复中的模块指令会自动执行。</div>';
+      },
+      hot: function () {
+        return '<div class="deep-card"><div class="d-t">热点大屏 · 演示</div>' +
+          '<div class="d-line">科技 12 条 · 航天 4 条 · 财经 9 条 · 国际 7 条</div>' +
+          '<div class="d-bar"><i style="width:86%"></i></div>' +
+          '<div class="d-line">▸ 多模态模型发布新架构（热度 96）</div>' +
+          '<div class="d-line">▸ 商业航天轨道对接（热度 88）</div>' +
+          '<div class="d-line">▸ 芯片产能突破（热度 84）</div></div>' +
+          '<div class="deep-card"><div class="d-t">信息流</div>' +
+          '<div class="d-line">按你的兴趣排序：AI 技术 &gt; 航天 &gt; 能源。每日早 8 点生成简报。</div>' +
+          '<div class="d-line">实时刷新：45 秒 · 演示数据，正式版接入 RSS/API。</div></div>';
+      },
+      ai: function () {
+        return '<div class="deep-card"><div class="d-t">架构详解 · v6.2</div>' +
+          '<div class="d-line">MoE 混合专家：8 个专家组 · 激活 40B</div>' +
+          '<div class="d-bar"><i style="width:70%"></i></div>' +
+          '<div class="d-line">上下文 128K · 视觉编码 24 层 · 音频 12 层</div>' +
+          '<div class="d-line">推理速度：输出 85 tok/s（演示值）</div></div>' +
+          '<div class="deep-card"><div class="d-t">能力评估</div>' +
+          '<div class="d-line">代码 92 · 数学 88 · 视觉 90 · 音频 84 · 推理 86 · 中文 94</div>' +
+          '<div class="d-bar"><i style="width:90%"></i></div>' +
+          '<div class="d-line">Token 成本：输入 ¥0.12 / 输出 ¥0.36（演示）</div></div>';
+      },
+      habit: function () {
+        return '<div class="deep-card"><div class="d-t">7 日专注曲线</div>' +
+          '<div class="d-line">周一 4.2h → 周五 6.4h，上升趋势 +18%</div>' +
+          '<div class="d-bar"><i style="width:65%"></i></div>' +
+          '<div class="d-line">峰值时段：14:00–17:00，建议把高难任务排在此窗口</div></div>' +
+          '<div class="deep-card"><div class="d-t">系统建议</div>' +
+          '<div class="d-line">1. 上午 10 点前做深度工作，减少打断</div>' +
+          '<div class="d-line">2. 晚间 1.2h 多为零散浏览，可合并为固定复盘</div>' +
+          '<div class="d-line">3. 连续专注 52 分钟后建议起身 8 分钟</div></div>';
+      },
+      media: function () {
+        return '<div class="deep-card"><div class="d-t">正在播放</div>' +
+          '<div class="d-line">🎵 深夜代码播放列表 · 02:41 / 04:12</div>' +
+          '<div class="d-bar"><i style="width:62%"></i></div>' +
+          '<div class="d-line">▸ 播放 ▸ 暂停 ▸ 下一首 ▸ 投屏到客厅</div></div>' +
+          '<div class="deep-card"><div class="d-t">均衡器 · 演示</div>' +
+          '<div class="d-line">低音 65 · 中音 78 · 高音 82 · 人声增强 开</div>' +
+          '<div class="d-bar"><i style="width:78%"></i></div>' +
+          '<div class="d-line">队列：3 条 · 上次播放位置已记忆</div></div>';
+      },
+      space: function () {
+        return '<div class="deep-card"><div class="d-t">工作空间 · 概览</div>' +
+          '<div class="d-line">▣ 贾维斯终端 Phase 1（75%）</div>' +
+          '<div class="d-bar"><i style="width:75%"></i></div>' +
+          '<div class="d-line">▣ 山海铸行 存档恢复（进行中）</div>' +
+          '<div class="d-line">▣ Blender 角色建模（40%）</div></div>' +
+          '<div class="deep-card"><div class="d-t">资源入口</div>' +
+          '<div class="d-line">📄 文档 8 份 · 🗂 工作区 3 个 · 🎮 游戏 2 款 · 🗄 素材库 24G</div>' +
+          '<div class="d-bar"><i style="width:55%"></i></div>' +
+          '<div class="d-line">快捷动作：打开工作区 / 启动游戏登录 / 归档旧文档</div></div>';
+      },
+      fate: function () {
+        return '<div class="deep-card"><div class="d-t">四柱八字 · 演示</div>' +
+          '<div class="d-line">年柱 丙午（火）· 月柱 乙未（木土）· 日柱 甲申（木金）· 时柱 壬申（水金）</div>' +
+          '<div class="d-line">五行分布：木 2 · 火 1 · 土 1 · 金 2 · 水 2</div>' +
+          '<div class="d-bar"><i style="width:68%"></i></div></div>' +
+          '<div class="deep-card"><div class="d-t">本周运势曲线</div>' +
+          '<div class="d-line">周一 58 → 周四 74（峰值）→ 周日 62</div>' +
+          '<div class="d-bar"><i style="width:74%"></i></div>' +
+          '<div class="d-line">卦象详解：水火既济，初吉终乱，宜顺势收尾，不宜恋战。</div>' +
+          '<div class="d-line">幸运数字 3 · 7 · 方位：正西</div></div>';
+      }
+    };
+
+    window.DETAIL = DETAIL;
+    window.DEEP = DEEP;
+    function drawerHTML(mode) {
+      var m = META[mode] || { name: mode, icon: '◈' };
+      var body = DETAIL[mode] ? DETAIL[mode]() : '<div class="dw-block"><div class="dw-sub">详情</div><div class="dw-row">内容整理中</div></div>';
+      return '<div class="dw-head"><span style="color:color-mix(in srgb,var(--acc1) 90%, transparent)">' + m.icon + '</span><span class="t">' + m.name + '</span><span class="sp"></span><span class="dw-x" onclick="closeDrawer()">✕</span></div>' +
+        body +
+        '<div class="dw-block"><span class="dw-deep-btn" onclick="openDeep(\'' + mode + '\')">◈ 深入 · 第三层</span></div>';
+    }
+    function deepHTML(mode) {
+      var m = META[mode] || { name: mode };
+      var cards = DEEP[mode] ? DEEP[mode]() : '<div class="deep-card"><div class="d-t">深入</div><div class="d-line">内容整理中</div></div>';
+      return '<div class="deep-head"><span class="t">' + m.name + ' · 深潜</span><span class="sp"></span><span class="deep-back" onclick="closeDeep()">返回</span><span class="dw-x" onclick="closeDeep()">✕</span></div><div class="deep-grid">' + cards + '</div>';
+    }
+    function setLevels(lv) {
+      var fps = document.querySelectorAll('.fp');
+      for (var i = 0; i < fps.length; i++) {
+        var lvEl = fps[i].querySelector('.levels');
+        if (!lvEl) continue;
+        for (var j = 0; j < lvEl.children.length; j++) {
+          lvEl.children[j].className = j < lv ? 'on' : '';
+        }
+      }
+    }
+    window.closeDrawer = function () { drawer.classList.remove('open'); drawer.innerHTML = ''; setLevels(1); };
+    window.closeDeep = function () { deep.classList.remove('open'); deep.innerHTML = ''; };
+    window.openDrawer = function (mode) {
+      drawer.innerHTML = drawerHTML(mode);
+      drawer.classList.add('open');
+      setLevels(2);
+    };
+    window.openDeep = function (mode) {
+      deep.innerHTML = deepHTML(mode);
+      deep.classList.add('open');
+      setLevels(3);
+    };
+
+    function fitScale(f, maxS) {
+      var hol = holo.getBoundingClientRect();
+      var m = 10;
+      var s = maxS;
+      f.style.setProperty('--ls', s);
+      for (var i = 0; i < 12; i++) {
+        var r = f.getBoundingClientRect();
+        if (r.left >= hol.left + m && r.right <= hol.right - m && r.top >= hol.top + m && r.bottom <= hol.bottom - m) break;
+        s = Math.max(1, s - 0.012);
+        f.style.setProperty('--ls', s);
+      }
+    }
+    function focusMode(m) {
+      if (window.setMode) window.setMode(m);
+      var litP = document.querySelector('.fp.lit');
+      if (litP) fitScale(litP, 1.045);
+    }
+    window.onPanelClick = function (m) {
+      if (drawer.classList.contains('open')) window.closeDrawer();
+      focusMode(m);
+      window.openDrawer(m);
+    };
+    var chips = document.querySelectorAll('.h-dock .chip');
+    for (var c = 0; c < chips.length; c++) {
+      chips[c].addEventListener('click', function () {
+        if (window.recordUse) window.recordUse(this.getAttribute('data-mode'));
+        focusMode(this.getAttribute('data-mode'));
+      });
+    }
+    var fps = document.querySelectorAll('.fp');
+    for (var p = 0; p < fps.length; p++) {
+      var f = fps[p];
+      var lvEl = document.createElement('div');
+      lvEl.className = 'levels';
+      lvEl.innerHTML = '<i></i><i></i><i></i>';
+      f.appendChild(lvEl);
+      var hint = document.createElement('div');
+      hint.className = 'expand-hint';
+      hint.textContent = '点击展开 ▸';
+      f.appendChild(hint);
+      f.addEventListener('mouseenter', function () { fitScale(this, 1.07); });
+      f.addEventListener('mouseleave', function () {
+        if (this.classList.contains('lit')) fitScale(this, 1.045);
+        else this.style.setProperty('--ls', '');
+      });
+    }
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        window.closeDeep();
+        window.closeDrawer();
+      }
+    });
+    setLevels(1);
+  })();
+</script>
+
+<script>
+  (function () {
+    var holo = document.getElementById('holo');
+    var main = holo.querySelector('.h-main');
+    var fps = Array.prototype.slice.call(document.querySelectorAll('.fp'));
+
+    /* drag hint */
+    fps.forEach(function (f) {
+      var hint = document.createElement('div');
+      hint.className = 'drag-hint';
+      hint.textContent = '⣿ 拖动';
+      f.appendChild(hint);
+    });
+
+    var BASE = {};
+    fps.forEach(function (f) { BASE[f.getAttribute('data-mode')] = f.innerHTML; });
+    window.__BASE_HTML = BASE;
+
+    /* ==== drag to reposition ==== */
+    var drag = null;
+    fps.forEach(function (f) {
+      f.addEventListener('pointerdown', function (e) {
+        if (e.target.closest('button, .cast-btn, .exp-more, .exp-close, .dw-x, .dw-deep-btn')) return;
+        if (f.classList.contains('expanded')) return;
+        if (holo.classList.contains('auto-layout')) return;
+        drag = { f: f, x: e.clientX, y: e.clientY, l: f.offsetLeft, t: f.offsetTop, moved: false };
+        try { f.setPointerCapture(e.pointerId); } catch (err) {}
+        f.classList.add('dragging');
+      });
+      f.addEventListener('pointermove', function (e) {
+        if (!drag || drag.f !== f) return;
+        var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+        if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+        if (drag.moved) {
+          var mr = main.getBoundingClientRect();
+          var nl = Math.max(0, Math.min(mr.width - f.offsetWidth, drag.l + dx));
+          var nt = Math.max(0, Math.min(mr.height - f.offsetHeight, drag.t + dy));
+          f.style.left = nl + 'px';
+          f.style.top = nt + 'px';
+          f.setAttribute('data-pos', 'user');
+          if (window.updateLinks) window.updateLinks();
+        }
+      });
+      f.addEventListener('pointerup', function (e) {
+        if (!drag || drag.f !== f) return;
+        var wasDrag = drag.moved;
+        f.classList.remove('dragging');
+        try { f.releasePointerCapture(e.pointerId); } catch (err) {}
+        drag = null;
+        if (wasDrag) {
+          f.setAttribute('data-suppress', '1');
+          savePositions();
+        }
+      });
+      f.addEventListener('pointercancel', function () {
+        if (drag && drag.f === f) { f.classList.remove('dragging'); drag = null; }
+      });
+    });
+    function savePositions() {
+      var map = {};
+      fps.forEach(function (f) {
+        map[f.getAttribute('data-mode')] = { left: f.style.left, top: f.style.top };
+      });
+      try { localStorage.setItem('jarvis-panel-pos', JSON.stringify(map)); } catch (e) {}
+    }
+    function loadPositions() {
+      var raw = null;
+      try { raw = JSON.parse(localStorage.getItem('jarvis-panel-pos') || 'null'); } catch (e) {}
+      if (!raw) return;
+      var mr = main.getBoundingClientRect();
+      fps.forEach(function (f) {
+        var m = raw[f.getAttribute('data-mode')];
+        if (!m) return;
+        var l = parseFloat(m.left) || 0, t = parseFloat(m.top) || 0;
+        f.style.left = Math.max(0, Math.min(mr.width - f.offsetWidth, l)) + 'px';
+        f.style.top = Math.max(0, Math.min(mr.height - f.offsetHeight, t)) + 'px';
+        f.setAttribute('data-pos', 'user');
+      });
+      if (window.updateLinks) window.updateLinks();
+    }
+
+    /* ==== apple-style in-place expand ==== */
+    function setLevelsAll(lv) {
+      fps.forEach(function (f) {
+        var lvEl = f.querySelector('.levels');
+        if (!lvEl) return;
+        for (var j = 0; j < lvEl.children.length; j++) lvEl.children[j].className = j < lv ? 'on' : '';
+      });
+    }
+    function dimOthers(except) {
+      fps.forEach(function (f) { f.classList.toggle('dim', f !== except); });
+    }
+    function undoDim() {
+      fps.forEach(function (f) { f.classList.remove('dim'); });
+    }
+    function openLayer(mode, level) {
+      var f = null;
+      fps.forEach(function (p) { if (p.getAttribute('data-mode') === mode) f = p; });
+      if (!f) return;
+      if (f.classList.contains('expanded')) { window.closeLayer(); return; }
+      if (level !== 3) level = 2;
+      var mr = main.getBoundingClientRect();
+      var baseW = f.offsetWidth, baseH = f.offsetHeight;
+      var baseX = f.offsetLeft, baseY = f.offsetTop;
+      var content = (level === 3 ? window.DEEP : window.DETAIL)[mode]();
+      var more = level === 2 ? '<div class="exp-more" onclick="event.stopPropagation();window.openLayer(\'' + mode + '\',3)">◈ 深入 · 第三层</div>' : '';
+      var close = '<div class="exp-close" onclick="event.stopPropagation();window.closeLayer()">✕</div>';
+      var targetW = level === 3 ? Math.min(mr.width * 0.9, 980) : Math.min(mr.width * 0.64, 660);
+      var targetH = level === 3 ? Math.min(mr.height * 0.9, 640) : Math.min(mr.height * 0.74, 460);
+      f.setAttribute('data-basew', baseW);
+      f.setAttribute('data-baseh', baseH);
+      f.setAttribute('data-basex', baseX);
+      f.setAttribute('data-basey', baseY);
+      f.style.transition = 'none';
+      f.style.width = baseW + 'px';
+      f.style.height = baseH + 'px';
+      f.innerHTML = content + close + more;
+      f.style.width = targetW + 'px';
+      f.style.height = targetH + 'px';
+      var sx = baseW / targetW, sy = baseH / targetH;
+      f.style.transformOrigin = 'center center';
+      f.style.transform = 'translate(0,0) scale(' + sx + ',' + sy + ')';
+      void f.offsetWidth;
+      f.style.transition = '';
+      f.classList.add('expanded', level === 3 ? 'expanded-3' : 'expanded-2');
+      f.setAttribute('data-level', level);
+      dimOthers(f);
+      setLevelsAll(level);
+      var dLeft = Math.max(0, Math.min(mr.width - targetW, baseX));
+      var dTop = Math.max(0, Math.min(mr.height - targetH, baseY));
+      var dx = (dLeft + targetW / 2) - (baseX + baseW / 2);
+      var dy = (dTop + targetH / 2) - (baseY + baseH / 2);
+      requestAnimationFrame(function () {
+        f.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(1,1)';
+      });
+    }
+    window.openLayer = openLayer;
+    window.closeLayer = function () {
+      var f = null;
+      fps.forEach(function (p) { if (p.classList.contains('expanded')) f = p; });
+      if (!f) return;
+      var mode = f.getAttribute('data-mode');
+      var bw = parseFloat(f.getAttribute('data-basew')) || 200;
+      var bh = parseFloat(f.getAttribute('data-baseh')) || 120;
+      var bx = parseFloat(f.getAttribute('data-basex')) || f.offsetLeft;
+      var by = parseFloat(f.getAttribute('data-basey')) || f.offsetTop;
+      var curW = f.offsetWidth, curH = f.offsetHeight;
+      var tx = (bx + bw / 2) - (f.offsetLeft + curW / 2);
+      var ty = (by + bh / 2) - (f.offsetTop + curH / 2);
+      f.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + (bw / curW) + ',' + (bh / curH) + ')';
+      f.classList.remove('expanded', 'expanded-2', 'expanded-3');
+      undoDim();
+      setLevelsAll(1);
+      setTimeout(function () {
+        f.style.transition = 'none';
+        f.style.transform = '';
+        f.style.width = '';
+        f.style.height = '';
+        f.innerHTML = BASE[mode];
+        var hint = document.createElement('div');
+        hint.className = 'drag-hint';
+        hint.textContent = '⣿ 拖动';
+        f.appendChild(hint);
+        void f.offsetWidth;
+        f.style.transition = '';
+        f.setAttribute('data-level', '1');
+      }, 520);
+    };
+    window.onPanelClick = function (mode) {
+      openLayer(mode, 2);
+    };
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') window.closeLayer();
+    });
+    setLevelsAll(1);
+    setTimeout(loadPositions, 500);
+  })();
+</script>
+
+<script>
+  (function () {
+    /* 修复第三层放大：始终以当前可见尺寸为起点，保留原始基础尺寸用于还原 */
+    var holo = document.getElementById('holo');
+    var main = holo.querySelector('.h-main');
+    var fps = Array.prototype.slice.call(document.querySelectorAll('.fp'));
+    function findPanel(mode) {
+      for (var i = 0; i < fps.length; i++) if (fps[i].getAttribute('data-mode') === mode) return fps[i];
+      return null;
+    }
+    function setLevels(lv) {
+      fps.forEach(function (f) {
+        var lvEl = f.querySelector('.levels');
+        if (!lvEl) return;
+        for (var j = 0; j < lvEl.children.length; j++) lvEl.children[j].className = j < lv ? 'on' : '';
+      });
+    }
+    function updateLinks() {
+      var mr = main.getBoundingClientRect();
+      if (!mr.width || !mr.height) return;
+      var lines = document.querySelectorAll('.links line');
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var f = findPanel(line.getAttribute('data-mode'));
+        if (!f) continue;
+        var x = ((f.offsetLeft + f.offsetWidth / 2) / mr.width) * 1000;
+        var y = ((f.offsetTop + f.offsetHeight / 2) / mr.height) * 700;
+        line.setAttribute('x2', x);
+        line.setAttribute('y2', y);
+      }
+    }
+    window.updateLinks = updateLinks;
+    function openLayer(mode, level) {
+      var f = findPanel(mode);
+      if (!f) return;
+      var other = null;
+      fps.forEach(function (p) { if (p !== f && p.classList.contains('expanded')) other = p; });
+      if (other) window.closeLayer();
+      var already = f.classList.contains('expanded');
+      if (already && parseInt(f.getAttribute('data-level') || '2', 10) === (level || 2)) {
+        window.closeLayer();
+        return;
+      }
+      if (level !== 3) level = 2;
+      var mr = main.getBoundingClientRect();
+      var vr = f.getBoundingClientRect();
+      var cw = vr.width, ch = vr.height;
+      var cx = vr.left - mr.left + vr.width / 2;
+      var cy = vr.top - mr.top + vr.height / 2;
+      if (!already) {
+        f.setAttribute('data-basew', f.offsetWidth);
+        f.setAttribute('data-baseh', f.offsetHeight);
+        f.setAttribute('data-basex', f.offsetLeft);
+        f.setAttribute('data-basey', f.offsetTop);
+      }
+      var targetW = level === 3 ? Math.min(mr.width * 0.9, 980) : Math.min(mr.width * 0.64, 660);
+      var targetH = level === 3 ? Math.min(mr.height * 0.9, 640) : Math.min(mr.height * 0.74, 460);
+      var content = (level === 3 ? window.DEEP : window.DETAIL)[mode]();
+      var more = level === 2 ? '<div class="exp-more" onclick="event.stopPropagation();window.openLayer(\'' + mode + '\',3)">◈ 深入 · 第三层</div>' : '';
+      var close = '<div class="exp-close" onclick="event.stopPropagation();window.closeLayer()">✕</div>';
+      var sx = cw / targetW, sy = ch / targetH;
+      f.style.transition = 'none';
+      f.style.width = targetW + 'px';
+      f.style.height = targetH + 'px';
+      f.innerHTML = content + close + more;
+      f.style.transformOrigin = 'center center';
+      f.style.transform =
+        'translate(' + (cx - (f.offsetLeft + targetW / 2)) + 'px,' + (cy - (f.offsetTop + targetH / 2)) + 'px) scale(' + sx + ',' + sy + ')';
+      void f.offsetWidth;
+      f.style.transition = '';
+      f.classList.add('expanded', level === 3 ? 'expanded-3' : 'expanded-2');
+      f.setAttribute('data-level', level);
+      if (window.__track) window.__track(mode, 'open');
+      holo.classList.add('layers-open');
+      fps.forEach(function (p) { p.classList.toggle('dim', p !== f); });
+      setLevels(level);
+      var dLeft = Math.max(0, Math.min(mr.width - targetW, f.offsetLeft));
+      var dTop = Math.max(0, Math.min(mr.height - targetH, f.offsetTop));
+      var dx = (dLeft + targetW / 2) - (f.offsetLeft + targetW / 2);
+      var dy = (dTop + targetH / 2) - (f.offsetTop + targetH / 2);
+      requestAnimationFrame(function () {
+        f.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(1,1)';
+      });
+    }
+    function closeLayer() {
+      var f = null;
+      fps.forEach(function (p) { if (p.classList.contains('expanded')) f = p; });
+      if (!f) return;
+      var mode = f.getAttribute('data-mode');
+      if (window.__track) window.__track(mode, 'close');
+      var bw = parseFloat(f.getAttribute('data-basew')) || 200;
+      var bh = parseFloat(f.getAttribute('data-baseh')) || 120;
+      var bx = parseFloat(f.getAttribute('data-basex')) || f.offsetLeft;
+      var by = parseFloat(f.getAttribute('data-basey')) || f.offsetTop;
+      var mr = main.getBoundingClientRect();
+      var vr = f.getBoundingClientRect();
+      var cw = vr.width, ch = vr.height;
+      var cx = vr.left - mr.left + vr.width / 2;
+      var cy = vr.top - mr.top + vr.height / 2;
+      var tx = (bx + bw / 2) - cx;
+      var ty = (by + bh / 2) - cy;
+      f.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + (bw / cw) + ',' + (bh / ch) + ')';
+      f.classList.remove('expanded', 'expanded-2', 'expanded-3');
+      holo.classList.remove('layers-open');
+      fps.forEach(function (p) { p.classList.remove('dim'); });
+      setLevels(1);
+      setTimeout(function () {
+        f.style.transition = 'none';
+        f.style.transform = '';
+        f.style.width = '';
+        f.style.height = '';
+        f.innerHTML = (window.__BASE_HTML && window.__BASE_HTML[mode]) || f.innerHTML;
+        var hint = document.createElement('div');
+        hint.className = 'drag-hint';
+        hint.textContent = '⣿ 拖动';
+        f.appendChild(hint);
+        void f.offsetWidth;
+        f.style.transition = '';
+        f.setAttribute('data-level', '1');
+      }, 520);
+    }
+    window.openLayer = openLayer;
+    window.closeLayer = closeLayer;
+    window.onPanelClick = function (mode) {
+      if (window.recordUse) window.recordUse(mode);
+      openLayer(mode, 2);
+    };
+    holo.addEventListener('click', function (e) {
+      var open = null;
+      fps.forEach(function (p) { if (p.classList.contains('expanded')) open = p; });
+      if (!open) return;
+      if (e.target.closest('.fp, .h-dock, .h-cmd, .h-top')) return;
+      closeLayer();
+    });
+    window.addEventListener('resize', function () { updateLinks(); });
+    updateLinks();
+  })();
+</script>
+
+<script>
+  (function () {
+    /* ==== Codex 智能体接入 + 模块系统可调用 ==== */
+    var AGENT_URL = window.JARVIS_AGENT_URL || 'http://127.0.0.1:8787';
+    var statusChip = document.querySelector('.h-chip .dot');
+    var statusText = null;
+    var statusLabel = null;
+    var hChips = document.querySelectorAll('.h-chip');
+    if (hChips.length > 1) {
+      statusText = hChips[1];
+      statusLabel = statusText.lastChild;
+    }
+    function setAgentBadge(mode) {
+      if (!statusChip || !statusText) return;
+      if (mode === 'codex') {
+        statusChip.style.background = '#3ef5a6';
+        statusChip.style.boxShadow = '0 0 9px #3ef5a6';
+        if (statusLabel) statusLabel.textContent = ' Codex 核心在线';
+      } else {
+        statusChip.style.background = '#ffc47c';
+        statusChip.style.boxShadow = '0 0 9px #ffc47c';
+        if (statusLabel) statusLabel.textContent = ' 演示模式';
+      }
+    }
+    fetch(AGENT_URL + '/api/status', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        window.__agent = d.agent || 'fallback';
+        setAgentBadge(window.__agent);
+      })
+      .catch(function () {
+        window.__agent = 'offline';
+        setAgentBadge('fallback');
+      });
+
+    var FALLBACK = [
+      { re: /运势|卦|玄学|农历|老黄历/, mod: 'fate', reply: '时运模块已开启：农历、今日卦象与运势都已就绪，先生。' },
+      { re: /报时|时间|几点了/, mod: 'fate', reply: '现在是系统时间，先生。具体时刻请在时运模块查看。' },
+      { re: /热点|新闻|资讯|头条/, mod: 'hot', reply: '全球热点已打开，先生。今日有 7 件值得关注的事。' },
+      { re: /音乐|影音|视频|播放|投屏/, mod: 'media', reply: '影音模块已就绪，先生。队列里有 3 条内容。' },
+      { re: /游戏/, mod: 'space', reply: '空间模块已打开，游戏登录入口就在里面，先生。' },
+      { re: /工作|任务|文档|文件/, mod: 'space', reply: '工作空间已就绪，先生。有 3 项任务正在进行。' },
+      { re: /AI|模型|token|多模态/, mod: 'ai', reply: 'AI 模型模块已打开，先生。今日 Token 用量与架构图已更新。' },
+      { re: /洞察|专注|行为|习惯/, mod: 'habit', reply: '行为洞察已开启，先生。您今日专注 6.4 小时，比昨日提升 18%。' },
+      { re: /你好|您好|hi|hello|嗨|在吗/, mod: 'chat', reply: '先生，我在。随时听候差遣。' }
+    ];
+    function localReply(text) {
+      for (var i = 0; i < FALLBACK.length; i++) {
+        if (FALLBACK[i].re.test(text)) return FALLBACK[i];
+      }
+      return { reply: '先生，这条指令我已收到。当前未连接智能体核心，启用后我可以深度对话并直接操控全部模块。', mod: null };
+    }
+    function typewrite(el, text, cb) {
+      el.textContent = '';
+      var i = 0;
+      var timer = setInterval(function () {
+        el.textContent += text.charAt(i);
+        i++;
+        var con = document.getElementById('chatConsole');
+        if (con) con.scrollTop = con.scrollHeight;
+        if (i >= text.length) { clearInterval(timer); if (cb) cb(); }
+      }, 12);
+    }
+    function appendMsg(text, who) {
+      var con = document.getElementById('chatConsole');
+      if (!con) return null;
+      var div = document.createElement('div');
+      div.className = 'cc-msg ' + who;
+      con.appendChild(div);
+      con.scrollTop = con.scrollHeight;
+      return div;
+    }
+    function ensureChatOpen() {
+      var con = document.getElementById('chatConsole');
+      if (!con) {
+        window.openLayer('chat', 3);
+      }
+    }
+    function send(text) {
+      var input = document.getElementById('cmdInput');
+      if (input) input.value = '';
+      ensureChatOpen();
+      appendMsg(text, 'user');
+      fetch(AGENT_URL + '/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || !d.ok) throw new Error('bad response');
+          window.__agent = d.agent || window.__agent;
+          setAgentBadge(window.__agent);
+          var el = appendMsg('', 'bot');
+          typewrite(el, d.reply || '…', function () {
+            if (d.mod && d.mod !== 'chat') window.jarvis.modules.open(d.mod);
+          });
+        })
+        .catch(function () {
+          var r = localReply(text);
+          var el = appendMsg('', 'bot');
+          typewrite(el, r.reply + '（智能体离线，已用本地路由）', function () {
+            if (r.mod && r.mod !== 'chat') window.jarvis.modules.open(r.mod);
+          });
+        });
+    }
+    var input = document.getElementById('cmdInput');
+    if (input) {
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && input.value.trim()) {
+          send(input.value.trim());
+        }
+      });
+    }
+    window.jarvis = {
+      modules: {
+        open: function (m) {
+          if (window.recordUse) window.recordUse(m);
+          if (window.setMode) window.setMode(m);
+          if (window.openLayer) window.openLayer(m, 2);
+        },
+        focus: function (m) {
+          if (window.setMode) window.setMode(m);
+        }
+      },
+      castFate: function () {
+        var b = document.getElementById('castBtn');
+        if (b) b.click();
+      },
+      reportTime: function () {
+        var c = document.getElementById('clock');
+        return c ? c.textContent : '';
+      },
+      status: function () {
+        return { agent: window.__agent || 'unknown' };
+      }
+    };
+  })();
+</script>
+
+<script>
+  (function () {
+    /* ==== 自动板块排版（按使用优先级习惯） ==== */
+    var holo = document.getElementById('holo');
+    var main = holo.querySelector('.h-main');
+    var fps = Array.prototype.slice.call(document.querySelectorAll('.fp'));
+    var BASE_RANK = { chat: 7, hot: 1, ai: 2, habit: 3, media: 4, space: 5, fate: 6 };
+    var freeState = null;
+    function usage() {
+      try { return JSON.parse(localStorage.getItem('jarvis-usage') || '{}'); } catch (e) { return {}; }
+    }
+    function saveUsage(u) {
+      try { localStorage.setItem('jarvis-usage', JSON.stringify(u)); } catch (e) {}
+    }
+    window.recordUse = function (mode) {
+      var u = usage();
+      u[mode] = (u[mode] || 0) + 1;
+      saveUsage(u);
+    };
+    function priorityOrder() {
+      var u = usage();
+      return fps.slice().sort(function (a, b) {
+        var ma = a.getAttribute('data-mode'), mb = b.getAttribute('data-mode');
+        var sa = (u[ma] || 0) * 2 + (8 - (BASE_RANK[ma] || 8));
+        var sb = (u[mb] || 0) * 2 + (8 - (BASE_RANK[mb] || 8));
+        return sb - sa || (BASE_RANK[ma] || 99) - (BASE_RANK[mb] || 99);
+      });
+    }
+    function slotXY(k, mr) {
+      var gap = 12, pad = 8;
+      var W = mr.width - pad * 2;
+      var H = mr.height - pad * 2;
+      var colW = (W - gap * 2) / 3;
+      var rowH = (H - gap * 2) / 3;
+      var col = k % 3, row = Math.floor(k / 3);
+      return {
+        left: pad + col * (colW + gap),
+        top: pad + row * (rowH + gap),
+        width: colW,
+        height: rowH
+      };
+    }
+    var btn = document.getElementById('autoLayoutBtn');
+    function setAuto(on) {
+      holo.classList.toggle('auto-layout', on);
+      if (on) {
+        if (window.closeLayer) window.closeLayer();
+        if (!freeState) {
+          freeState = {};
+          fps.forEach(function (f) {
+            freeState[f.getAttribute('data-mode')] = {
+              left: f.style.left,
+              top: f.style.top,
+              width: f.style.width,
+              height: f.style.height,
+              pos: f.getAttribute('data-pos')
+            };
+          });
+        }
+        var mr = main.getBoundingClientRect();
+        var order = priorityOrder();
+        order.forEach(function (f, k) {
+          var s = slotXY(k, mr);
+          f.style.left = s.left + 'px';
+          f.style.top = s.top + 'px';
+          f.style.width = s.width + 'px';
+          f.style.height = s.height + 'px';
+          f.style.overflowY = 'auto';
+          f.setAttribute('data-pos', 'auto');
+        });
+        if (btn) btn.textContent = '◈ 自由排版';
+      } else {
+        fps.forEach(function (f) {
+          var m = f.getAttribute('data-mode');
+          var st = freeState && freeState[m];
+          f.style.left = st ? st.left : '';
+          f.style.top = st ? st.top : '';
+          f.style.width = st ? st.width : '';
+          f.style.height = st ? st.height : '';
+          f.style.overflowY = '';
+          if (f.getAttribute('data-pos') === 'auto') {
+            if (st && st.pos) f.setAttribute('data-pos', st.pos);
+            else f.removeAttribute('data-pos');
+          }
+        });
+        if (btn) btn.textContent = '✦ 自动排版';
+      }
+      if (window.updateLinks) window.updateLinks();
+      try { localStorage.setItem('jarvis-layout', on ? 'auto' : 'free'); } catch (e) {}
+    }
+    window.toggleAutoLayout = function () {
+      setAuto(!holo.classList.contains('auto-layout'));
+    };
+    window.addEventListener('resize', function () {
+      if (holo.classList.contains('auto-layout')) setAuto(true);
+    });
+    try {
+      if (localStorage.getItem('jarvis-layout') === 'auto') {
+        setTimeout(function () { setAuto(true); }, 400);
+      }
+    } catch (e) {}
+  })();
+</script>
+
+<script>
+  (function () {
+    /* ==== 实时真实数据与功能 ==== */
+    var AGENT_URL = window.JARVIS_AGENT_URL || 'http://127.0.0.1:8787';
+    var LIVE = { hot: [], ai: null, space: [] };
+    var DEMO_DETAIL = {}, DEMO_DEEP = {};
+    Object.keys(window.DETAIL || {}).forEach(function (k) { DEMO_DETAIL[k] = window.DETAIL[k]; });
+    Object.keys(window.DEEP || {}).forEach(function (k) { DEMO_DEEP[k] = window.DEEP[k]; });
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function bar(w) { return '<div class="dw-bar"><i style="width:' + w + '%"></i></div>'; }
+    function fmtPub(p) {
+      try { var d = new Date(p); if (isNaN(d)) return ''; return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'); } catch (e) { return ''; }
+    }
+    function fmtNum(n) {
+      n = n || 0;
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+      return String(n);
+    }
+    function fmtSize(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+      return (b / 1048576).toFixed(1) + ' MB';
+    }
+    function fetchJSON(url, timeout) {
+      var c = new AbortController();
+      var t = setTimeout(function () { c.abort(); }, timeout || 12000);
+      return fetch(url, { cache: 'no-store', signal: c.signal }).then(function (r) { return r.json(); }).finally(function () { clearTimeout(t); });
+    }
+    function postJSON(url, data, timeout) {
+      var c = new AbortController();
+      var t = setTimeout(function () { c.abort(); }, timeout || 8000);
+      return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), signal: c.signal })
+        .then(function (r) { return r.json(); }).finally(function () { clearTimeout(t); });
+    }
+
+    function refreshOpen(mode) {
+      var fps = document.querySelectorAll('.fp');
+      var f = null;
+      for (var i = 0; i < fps.length; i++) {
+        if (fps[i].getAttribute('data-mode') === mode && fps[i].classList.contains('expanded')) f = fps[i];
+      }
+      if (!f) return;
+      var level = parseInt(f.getAttribute('data-level') || '2', 10);
+      var content = (level === 3 ? window.DEEP : window.DETAIL)[mode]();
+      var close = '<div class="exp-close" onclick="event.stopPropagation();window.closeLayer()">✕</div>';
+      var more = level === 2 ? '<div class="exp-more" onclick="event.stopPropagation();window.openLayer(\'' + mode + '\',3)">◈ 深入 · 第三层</div>' : '';
+      f.innerHTML = content + close + more;
+    }
+
+    /* ---- 全球热点 ---- */
+    function renderHotTicker() {
+      var inEl = document.querySelector('.fp-hot .tick .in');
+      if (!inEl || !LIVE.hot.length) return;
+      var parts = LIVE.hot.slice(0, 8).map(function (it) { return '<em>▸ ' + esc(it.title) + '</em>'; });
+      inEl.innerHTML = parts.join('') + parts.join('');
+    }
+    function loadHot() {
+      return fetchJSON(AGENT_URL + '/api/hot', 15000).then(function (d) {
+        if (d && d.ok && d.items && d.items.length) {
+          LIVE.hot = d.items;
+          renderHotTicker();
+          refreshOpen('hot');
+        }
+        return LIVE.hot;
+      }).catch(function () { return LIVE.hot; });
+    }
+    window.DETAIL.hot = function () {
+      var items = LIVE.hot.slice(0, 8);
+      if (!items.length) return DEMO_DETAIL.hot();
+      var rows = items.map(function (it, i) {
+        return '<div class="dw-row"><span class="k">' + String(i + 1).padStart(2, '0') + '</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(it.title) + '</span><span class="v">' + esc(it.source) + ' · ' + fmtPub(it.pub) + '</span></div>';
+      }).join('');
+      return '<div class="dw-block"><div class="dw-sub">实时热点 · 多源聚合</div>' + rows + '</div>';
+    };
+    window.DEEP.hot = function () {
+      var items = LIVE.hot.slice(0, 12);
+      var list = items.length ? items.map(function (it) {
+        return '<div class="d-line">▸ ' + esc(it.title) + ' <span style="color:color-mix(in srgb,var(--acc1) 75%, transparent)">[' + esc(it.source) + ']</span></div>';
+      }).join('') : '<div class="d-line">暂无数据，稍后自动刷新</div>';
+      return '<div class="deep-card"><div class="d-t">实时热点大屏 · 自动刷新</div>' + list + '</div>' +
+        '<div class="deep-card"><div class="d-t">数据源</div>' +
+        '<div class="d-line">36氪 · 少数派 · 澎湃 · Hacker News（60 秒自动刷新，本地桥接服务聚合）</div>' +
+        '<div class="d-line">网络受限时自动回退内置样例。</div></div>';
+    };
+
+    /* ---- AI 前沿 ---- */
+    function aiModels() {
+      var g = (LIVE.ai || []).filter(function (x) { return x.kind === 'model'; })[0];
+      return (g && g.items) || [];
+    }
+    function aiPapers() {
+      var g = (LIVE.ai || []).filter(function (x) { return x.kind === 'paper'; })[0];
+      return (g && g.items) || [];
+    }
+    function loadAi() {
+      return fetchJSON(AGENT_URL + '/api/ai', 25000).then(function (d) {
+        if (d && d.ok) { LIVE.ai = d.groups; refreshOpen('ai'); }
+        return LIVE.ai;
+      }).catch(function () { return LIVE.ai; });
+    }
+    window.DETAIL.ai = function () {
+      var models = aiModels().slice(0, 5);
+      var papers = aiPapers().slice(0, 3);
+      var html = '<div class="dw-block"><div class="dw-sub">Hugging Face 热门模型 · 实时</div>';
+      html += models.length ? models.map(function (m) {
+        return '<div class="dw-row"><span class="k">◈</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(m.id) + '</span><span class="v">' + fmtNum(m.downloads) + ' 下载</span></div>';
+      }).join('') : '<div class="dw-row">加载中…</div>';
+      html += '</div><div class="dw-block"><div class="dw-sub">arXiv 最新 · cs.AI / cs.LG</div>';
+      html += papers.length ? papers.map(function (p) {
+        return '<div class="dw-row"><span class="k">📄</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(p.title) + '</span><span class="v">' + (p.pub || '').slice(0, 10) + '</span></div>';
+      }).join('') : '<div class="dw-row">加载中…</div>';
+      return html + '</div>';
+    };
+    window.DEEP.ai = function () {
+      var papers = aiPapers().slice(0, 6);
+      var models = aiModels().slice(0, 6);
+      var phtml = papers.length ? papers.map(function (p) {
+        return '<div class="d-line">▸ ' + esc(p.title) + ' <span style="color:color-mix(in srgb,var(--acc1) 75%, transparent)">(' + (p.pub || '').slice(0, 10) + ')</span></div>';
+      }).join('') : '<div class="d-line">加载中…</div>';
+      var mhtml = models.length ? models.map(function (m) {
+        return '<div class="d-line">◈ ' + esc(m.id) + ' · ' + fmtNum(m.downloads) + ' 下载 · ' + fmtNum(m.likes) + ' 赞</div>';
+      }).join('') : '<div class="d-line">加载中…</div>';
+      return '<div class="deep-card"><div class="d-t">arXiv 最新论文</div>' + phtml + '</div>' +
+        '<div class="deep-card"><div class="d-t">Hugging Face 热门模型</div>' + mhtml + '</div>';
+    };
+
+    /* ---- 行为洞察：真实记录 ---- */
+    function keyOf(d) { return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+    function hms(sec) {
+      sec = sec || 0;
+      var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+      return (h ? h + 'h ' : '') + m + 'm';
+    }
+    function addTime(s, mode, ms, now) {
+      if (ms < 3000) return;
+      var sec = Math.round(Math.min(ms, 1800000) / 1000);
+      s.byMode = s.byMode || {};
+      s.byMode[mode] = (s.byMode[mode] || 0) + sec;
+      var d = new Date(now);
+      var key = keyOf(d);
+      s.days = s.days || {};
+      s.days[key] = (s.days[key] || 0) + sec;
+      var h = d.getHours();
+      s.hours = s.hours || {};
+      s.hours[h] = (s.hours[h] || 0) + sec;
+    }
+    window.__track = function (mode, ev) {
+      var now = Date.now();
+      var s = {};
+      try { s = JSON.parse(localStorage.getItem('jarvis-focus') || '{}'); } catch (e) {}
+      if (s.cur && ev === 'open' && s.cur !== mode) addTime(s, s.cur, now - (s.ts || now), now);
+      if (ev === 'open') { s.cur = mode; s.ts = now; }
+      if (ev === 'close') {
+        if (s.cur) addTime(s, s.cur, now - (s.ts || now), now);
+        s.cur = null;
+      }
+      try { localStorage.setItem('jarvis-focus', JSON.stringify(s)); } catch (e) {}
+      renderHabit();
+    };
+    function habitData() {
+      var s = {};
+      try { s = JSON.parse(localStorage.getItem('jarvis-focus') || '{}'); } catch (e) {}
+      var todaySec = (s.days || {})[keyOf(new Date())] || 0;
+      var week = [];
+      for (var i = 6; i >= 0; i--) {
+        var d = new Date(); d.setDate(d.getDate() - i);
+        week.push({ label: '周' + '日一二三四五六'.charAt(d.getDay()), sec: (s.days || {})[keyOf(d)] || 0 });
+      }
+      var hours = s.hours || {};
+      var peak = 0, peakHour = null;
+      for (var h in hours) { if (hours[h] > peak) { peak = hours[h]; peakHour = h; } }
+      return { todaySec: todaySec, week: week, peakHour: peakHour, byMode: s.byMode || {} };
+    }
+    function renderHabit() {
+      var d = habitData();
+      var bars = document.querySelectorAll('.fp-habit .bars i');
+      var max = Math.max.apply(null, d.week.map(function (w) { return w.sec; }));
+      if (max > 0) {
+        for (var i = 0; i < bars.length && i < d.week.length; i++) {
+          bars[i].style.height = Math.max(8, Math.round(d.week[i].sec / max * 100)) + '%';
+        }
+      }
+      var sum = document.getElementById('habitSummary');
+      if (sum) sum.textContent = '今日专注 ' + hms(d.todaySec) + (d.peakHour ? ' · 高峰 ' + d.peakHour + ' 点' : ' · 数据积累中');
+    }
+    window.DETAIL.habit = function () {
+      var d = habitData();
+      var max = Math.max.apply(null, d.week.map(function (w) { return w.sec; })) || 1;
+      var rows = d.week.map(function (w) {
+        return '<div class="dw-row">' + w.label + ' ' + bar(Math.max(4, Math.round(w.sec / max * 100))) + '<span class="v">' + hms(w.sec) + '</span></div>';
+      }).join('');
+      return '<div class="dw-block"><div class="dw-sub">近 7 日真实使用时长</div>' + rows + '</div>';
+    };
+    window.DEEP.habit = function () {
+      var d = habitData();
+      var top = Object.keys(d.byMode).sort(function (a, b) { return (d.byMode[b] || 0) - (d.byMode[a] || 0); }).slice(0, 4);
+      var tops = top.length ? top.map(function (m) {
+        return '<div class="d-line">▸ ' + esc(m) + '：' + hms(d.byMode[m]) + '</div>';
+      }).join('') : '<div class="d-line">多打开几个模块，这里会出现你的真实使用排行。</div>';
+      var w = Math.min(100, 18 + (d.todaySec / 3600) * 12);
+      return '<div class="deep-card"><div class="d-t">真实行为数据 · 本地记录</div>' +
+        '<div class="d-line">今日专注 ' + hms(d.todaySec) + ' · 高峰时段 ' + (d.peakHour ? d.peakHour + ' 点' : '待积累') + '</div>' +
+        '<div class="d-bar"><i style="width:' + w + '%"></i></div></div>' +
+        '<div class="deep-card"><div class="d-t">模块使用排行</div>' + tops + '</div>';
+    };
+
+    /* ---- 空间：真实文件 ---- */
+    function loadSpace() {
+      return fetchJSON(AGENT_URL + '/api/workspace', 10000).then(function (d) {
+        if (d && d.ok) { LIVE.space = d.files || []; refreshOpen('space'); }
+        return LIVE.space;
+      }).catch(function () { return LIVE.space; });
+    }
+    window.DETAIL.space = function () {
+      var files = LIVE.space.slice(0, 8);
+      var rows = files.length ? files.map(function (f) {
+        return '<div class="dw-row"><span class="k">' + (f.isDir ? '▣' : '▸') + '</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(f.path) + '</span><span class="v">' + (f.isDir ? '目录' : fmtSize(f.size)) + '</span></div>';
+      }).join('') : '<div class="dw-row">正在读取工作空间…</div>';
+      return '<div class="dw-block"><div class="dw-sub">工作空间 · 真实文件（只读）</div>' + rows + '</div>' +
+        '<div class="dw-block"><div class="dw-sub">启动器（需服务端 JARVIS_LAUNCH 配置）</div>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.jarvis.launch(\'微信\')">启动 微信</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.jarvis.launch(\'Chrome\')">启动 Chrome</span>' +
+        '<span class="dw-chip">游戏入口（JARVIS_GAME_URL）</span></div>';
+    };
+    window.DEEP.space = function () {
+      var files = LIVE.space.slice(0, 24);
+      var rows = files.length ? files.map(function (f) {
+        return '<div class="d-line">' + (f.isDir ? '▣ ' : '▸ ') + esc(f.path) + ' <span style="color:color-mix(in srgb,var(--acc1) 70%, transparent)">' + (f.isDir ? '目录' : fmtSize(f.size)) + '</span></div>';
+      }).join('') : '<div class="d-line">正在读取…</div>';
+      return '<div class="deep-card"><div class="d-t">工作空间 · 真实文件</div>' + rows + '</div>' +
+        '<div class="deep-card"><div class="d-t">说明</div>' +
+        '<div class="d-line">文件列表由本地桥接服务只读提供（项目目录）。</div>' +
+        '<div class="d-line">应用启动需配置 JARVIS_LAUNCH 白名单；游戏登录地址配置 JARVIS_GAME_URL。</div></div>';
+    };
+
+    /* ---- 影音：真实播放 ---- */
+    window.DETAIL.media = function () {
+      return '<div class="dw-block"><div class="dw-sub">在线音频 · 真实流</div>' +
+        '<audio controls style="width:100%;border-radius:8px" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>' +
+        '<div class="dw-row">🎵 SoundHelix 示例曲目<span class="v">在线播放</span></div></div>' +
+        '<div class="dw-block"><div class="dw-sub">在线视频 · 公开示例</div>' +
+        '<video controls style="width:100%;border-radius:8px" src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>' +
+        '<div class="dw-row">🎬 Big Buck Bunny（公开测试素材）<span class="v">在线播放</span></div></div>';
+    };
+    window.DEEP.media = function () {
+      return '<div class="deep-card"><div class="d-t">播放器</div>' +
+        '<audio controls style="width:100%" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>' +
+        '<div class="d-line">SoundHelix 示例曲目 · 可在线播放</div></div>' +
+        '<div class="deep-card"><div class="d-t">视频</div>' +
+        '<video controls style="width:100%;border-radius:10px" src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>' +
+        '<div class="d-line">Big Buck Bunny · 公开测试素材</div></div>';
+    };
+
+    /* ---- 时运：周易原文 ---- */
+    window.DETAIL.fate = function () {
+      var h = window.__currentHex || { idx: 0, luck: 60 };
+      var name = (window.HEX && window.HEX[h.idx]) || '水火既济';
+      var txt = (window.GUA_TXT && window.GUA_TXT[h.idx]) || '';
+      return '<div class="dw-block"><div class="dw-sub">今日卦象 · 周易原文</div>' +
+        '<div class="dw-row"><span class="k">卦名</span> ' + esc(name) + '</div>' +
+        '<div class="dw-row"><span class="k">卦辞</span> ' + esc(txt) + '</div>' +
+        '<div class="dw-row"><span class="k">运势</span> ' + h.luck + ' 分 · 随时间片更新</div></div>' +
+        DEMO_DETAIL.fate();
+    };
+
+    /* ---- 扩展 jarvis API ---- */
+    window.jarvis = window.jarvis || {};
+    window.jarvis.launch = function (key) {
+      return postJSON(AGENT_URL + '/api/launch', { key: key }).then(function (d) {
+        window.jarvis.say(d && d.ok ? '已启动：' + (d.app || key) : '启动失败：' + ((d && d.error) || '未配置'));
+      }).catch(function () { window.jarvis.say('启动服务未连接。'); });
+    };
+    window.jarvis.say = function (text) {
+      var con = document.getElementById('chatConsole');
+      if (!con) { window.openLayer('chat', 3); con = document.getElementById('chatConsole'); }
+      if (!con) return;
+      var div = document.createElement('div');
+      div.className = 'cc-msg bot';
+      div.textContent = text;
+      con.appendChild(div);
+      con.scrollTop = con.scrollHeight;
+    };
+
+    loadHot();
+    loadAi();
+    loadSpace();
+    renderHabit();
+    setTimeout(loadHot, 900);
+    setInterval(loadHot, 60000);
+    setInterval(loadAi, 600000);
+    setInterval(renderHabit, 30000);
+  })();
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  (function () {
+    if (!window.THREE) return; /* CDN 不可用：保留 CSS 地球兜底 */
+    var holo = document.getElementById('holo');
+    var slot = document.getElementById('earthSlot');
+    var cssEarth = document.getElementById('cssEarth');
+    var scene = new THREE.Scene();
+    var cam = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+    cam.position.z = 3.1;
+    var renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setClearColor(0x000000, 0);
+    slot.appendChild(renderer.domElement);
+
+    var sun = new THREE.DirectionalLight(0xffffff, 1.5);
+    scene.add(sun);
+    scene.add(new THREE.AmbientLight(0x445a78, 0.9));
+
+    var earthMat = new THREE.MeshPhongMaterial({ color: 0x8fc9ff, specular: 0x223344, shininess: 22 });
+    var earth = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), earthMat);
+    scene.add(earth);
+
+    var clouds = null;
+    var loader = new THREE.TextureLoader();
+    loader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg', function (tex) {
+      earthMat.map = tex;
+      earthMat.color.set(0xffffff);
+      earthMat.needsUpdate = true;
+    }, undefined, function () {});
+    loader.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png', function (tex) {
+      clouds = new THREE.Mesh(
+        new THREE.SphereGeometry(1.015, 48, 48),
+        new THREE.MeshPhongMaterial({ map: tex, transparent: true, opacity: 0.42, depthWrite: false })
+      );
+      scene.add(clouds);
+    }, undefined, function () {});
+
+    var glowMat = new THREE.ShaderMaterial({
+      uniforms: { c: { value: new THREE.Color(0x7ce7ff) } },
+      vertexShader: 'varying vec3 vN; void main(){ vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: 'uniform vec3 c; varying vec3 vN; void main(){ float i = pow(0.62 - dot(vN, vec3(0.0,0.0,1.0)), 2.0); gl_FragColor = vec4(c, 1.0) * i * 0.85; }',
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.BackSide
+    });
+    var glow = new THREE.Mesh(new THREE.SphereGeometry(1.18, 48, 48), glowMat);
+    scene.add(glow);
+
+    function sunPosition() {
+      var now = new Date();
+      var start = new Date(now.getFullYear(), 0, 0);
+      var doy = Math.floor((now - start) / 86400000);
+      var decl = 23.44 * Math.sin(2 * Math.PI * (doy - 81) / 365) * Math.PI / 180;
+      var utcH = now.getUTCHours() + now.getUTCMinutes() / 60;
+      var lon = ((utcH - 12) * 15) * Math.PI / 180;
+      return {
+        x: Math.cos(decl) * Math.cos(lon),
+        y: Math.sin(decl),
+        z: Math.cos(decl) * Math.sin(lon)
+      };
+    }
+    function updateEarth() {
+      var now = new Date();
+      var t = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+      earth.rotation.y = -((t - 12) / 24) * Math.PI * 2;
+      var sp = sunPosition();
+      sun.position.set(sp.x * 8, sp.y * 8, sp.z * 8);
+    }
+    function resize() {
+      var w = slot.clientWidth || 150;
+      var h = slot.clientHeight || 150;
+      renderer.setSize(w, h);
+      cam.aspect = w / h;
+      cam.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+    function frame() {
+      requestAnimationFrame(frame);
+      if (clouds) clouds.rotation.y = earth.rotation.y * 1.12;
+      renderer.render(scene, cam);
+    }
+    function show() {
+      updateEarth();
+      resize();
+      frame();
+      cssEarth.style.display = 'none';
+    }
+    show();
+
+    var obs = new MutationObserver(function () {
+      var c = getComputedStyle(holo).getPropertyValue('--acc1').trim() || '#7ce7ff';
+      glowMat.uniforms.c.value.set(c);
+    });
+    obs.observe(holo, { attributes: true, attributeFilter: ['class'] });
+    var c0 = getComputedStyle(holo).getPropertyValue('--acc1').trim() || '#7ce7ff';
+    glowMat.uniforms.c.value.set(c0);
+    setInterval(updateEarth, 30000);
+  })();
+</script>
+</body>
+</html>
