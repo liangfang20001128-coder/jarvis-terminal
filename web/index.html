@@ -908,7 +908,7 @@
   })();
 </script>
 
-<script src="https://unpkg.com/lunar-javascript@1.6.12/lunar.js"></script>
+<script src="vendor/lunar.js"></script>
 <script>
   (function () {
     var HEX = ['乾为天','坤为地','水雷屯','山水蒙','水天需','天水讼','地水师','水地比','风天小畜','天泽履','地天泰','天地否','天火同人','火天大有','地山谦','雷地豫','泽雷随','山风蛊','地泽临','风地观','火雷噬嗑','山火贲','山地剥','地雷复','天雷无妄','山天大畜','山雷颐','泽风大过','坎为水','离为火','泽山咸','雷风恒','天山遁','雷天大壮','火地晋','地火明夷','风火家人','火泽睽','水山蹇','雷水解','山泽损','风雷益','泽天夬','天风姤','泽地萃','地风升','泽水困','水风井','泽火革','火风鼎','震为雷','艮为山','风山渐','雷泽归妹','雷火丰','火山旅','巽为风','兑为泽','风水涣','水泽节','风泽中孚','雷山小过','水火既济','火水未济'];
@@ -1672,6 +1672,7 @@
       }
     }
     function send(text) {
+      if (window.__anal) window.__anal('chat');
       var input = document.getElementById('cmdInput');
       if (input) input.value = '';
       ensureChatOpen();
@@ -1690,6 +1691,10 @@
           typewrite(el, d.reply || '…', function () {
             if (d.mod && d.mod !== 'chat') window.jarvis.modules.open(d.mod);
             if (window.jarvis.speak) window.jarvis.speak(d.reply || '');
+            if (window.jarvis.trackTokens) {
+              window.jarvis.trackTokens('in', text.length);
+              window.jarvis.trackTokens('out', (d.reply || '').length);
+            }
           });
         })
         .catch(function () {
@@ -1698,6 +1703,7 @@
           typewrite(el, r.reply + '（智能体离线，已用本地路由）', function () {
             if (r.mod && r.mod !== 'chat') window.jarvis.modules.open(r.mod);
             if (window.jarvis.speak) window.jarvis.speak(r.reply);
+            if (window.jarvis.sayEN) window.jarvis.sayEN('notcatch');
           });
         });
     }
@@ -1844,7 +1850,7 @@
   (function () {
     /* ==== 实时真实数据与功能 ==== */
     var AGENT_URL = window.JARVIS_AGENT_URL || 'http://127.0.0.1:8787';
-    var LIVE = { hot: [], ai: null, space: [] };
+    var LIVE = { hot: [], ai: null, space: [], cnHot: {}, cnFallback: {}, bili: [], biliFallback: false, models: [], modelsFallback: false, apps: [], localOnly: false, repo: [], repoFallback: false, gh: null, search: [] };
     var DEMO_DETAIL = {}, DEMO_DEEP = {};
     Object.keys(window.DETAIL || {}).forEach(function (k) { DEMO_DETAIL[k] = window.DETAIL[k]; });
     Object.keys(window.DEEP || {}).forEach(function (k) { DEMO_DEEP[k] = window.DEEP[k]; });
@@ -1892,6 +1898,175 @@
       var more = level === 2 ? '<div class="exp-more" onclick="event.stopPropagation();window.openLayer(\'' + mode + '\',3)">◈ 深入 · 第三层</div>' : '';
       f.innerHTML = content + close + more;
     }
+    window.refreshOpen = refreshOpen;
+
+    /* ---- 中国社交热点 ---- */
+    function loadChinaHot(src) {
+      if (LIVE.cnHot[src]) return Promise.resolve(LIVE.cnHot[src]);
+      return fetchJSON(AGENT_URL + '/api/hot?cn=1&src=' + src, 15000).then(function (d) {
+        if (d && d.ok && d.items && d.items.length) {
+          LIVE.cnHot[src] = d.items;
+          LIVE.cnFallback[src] = !!d.fallback;
+          refreshOpen('hot');
+        }
+        return LIVE.cnHot[src] || [];
+      }).catch(function () { return []; });
+    }
+    window.showHotTab = function (src) {
+      window.__anal('click', 'hot-' + src);
+      window.__hotSrc = src;
+      refreshOpen('hot');
+      loadChinaHot(src);
+    };
+
+    /* ---- B站热榜 ---- */
+    function loadBili() {
+      if (LIVE.bili.length) return Promise.resolve(LIVE.bili);
+      return fetchJSON(AGENT_URL + '/api/bili/hot', 15000).then(function (d) {
+        if (d && d.ok && d.items && d.items.length) {
+          LIVE.bili = d.items;
+          LIVE.biliFallback = !!d.fallback;
+          refreshOpen('media');
+        }
+        return LIVE.bili;
+      }).catch(function () { return LIVE.bili; });
+    }
+    window.playBili = function (bvid) {
+      if (!bvid) return;
+      window.__anal('click', 'media-bili-play');
+      LIVE.biliPlay = bvid;
+      refreshOpen('media');
+    };
+
+    /* ---- 模型目录 ---- */
+    function loadModels() {
+      if (LIVE.models.length) return Promise.resolve(LIVE.models);
+      return fetchJSON(AGENT_URL + '/api/models', 15000).then(function (d) {
+        if (d && d.ok && d.models && d.models.length) {
+          LIVE.models = d.models;
+          LIVE.modelsFallback = !!d.fallback;
+          refreshOpen('ai');
+        }
+        return LIVE.models;
+      }).catch(function () { return LIVE.models; });
+    }
+
+    /* ---- 空间：应用 / 仓库 / 搜索 ---- */
+    function loadApps() {
+      return fetchJSON(AGENT_URL + '/api/apps', 10000).then(function (d) {
+        if (d && d.ok) {
+          LIVE.apps = d.apps || [];
+          LIVE.localOnly = !!d.localOnly;
+          refreshOpen('space');
+        }
+        return LIVE.apps;
+      }).catch(function () { return LIVE.apps; });
+    }
+    function loadRepoTree() {
+      return fetchJSON(AGENT_URL + '/api/repo/tree', 15000).then(function (d) {
+        if (d && d.ok && d.tree) {
+          LIVE.repo = d.tree;
+          LIVE.repoFallback = !!d.fallback;
+          refreshOpen('space');
+        }
+        return LIVE.repo;
+      }).catch(function () { return LIVE.repo; });
+    }
+    function loadSearch(q) {
+      var input = document.getElementById('spSearch');
+      if (input) input.value = q;
+      if (!q) { LIVE.search = []; refreshOpen('space'); return; }
+      return fetchJSON(AGENT_URL + '/api/workspace/search?q=' + encodeURIComponent(q), 10000).then(function (d) {
+        LIVE.search = (d && d.ok && d.files) || [];
+        refreshOpen('space');
+      }).catch(function () { LIVE.search = []; refreshOpen('space'); });
+    }
+    window.loadSearch = loadSearch;
+    window.jarvis = window.jarvis || {};
+    window.jarvis.openTarget = function (type, value) {
+      window.__anal('click', 'space-' + type);
+      return postJSON(AGENT_URL + '/api/open', { type: type, value: value }).then(function (d) {
+        window.jarvis.say(d && d.ok ? (d.message || '完成') : '操作失败：' + ((d && d.error) || '未连接'));
+      }).catch(function () { window.jarvis.say('本机服务未连接。'); });
+    };
+
+    /* ---- 时运：每日玄学（lunar-javascript 离线计算） ---- */
+    function dailyFortune() {
+      var today = new Date();
+      var key = 'jarvis-fate-' + today.getFullYear() + '-' + (today.getMonth() + 1) + '-' + today.getDate();
+      try { var c = JSON.parse(localStorage.getItem(key)); if (c) return c; } catch (e) {}
+      var L = window.Lunar || {};
+      var out = { lunar: '', ganzhi: '', yi: [], ji: [], hexName: '水火既济', luck: 60, tip: '' };
+      try {
+        var solar = (window.Solar && window.Solar.fromDate) ? window.Solar.fromDate(today) : null;
+        var lunar = solar ? solar.getLunar() : (L.fromDate ? L.fromDate(today) : null);
+        if (!lunar) throw new Error('no lunar');
+        out.lunar = lunar.toString();
+        out.ganzhi = lunar.getYearInGanZhi() + '年 ' + lunar.getMonthInGanZhi() + '月 ' + lunar.getDayInGanZhi() + '日';
+        var yi = lunar.getDayYi(), ji = lunar.getDayJi();
+        out.yi = String(yi || '').split(/[,，\s]+/).filter(Boolean).slice(0, 4);
+        out.ji = String(ji || '').split(/[,，\s]+/).filter(Boolean).slice(0, 4);
+        var seed = Math.abs((today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate()) * 37 % 64);
+        out.hexName = (window.HEX && window.HEX[seed]) || '水火既济';
+        out.luck = 40 + (seed % 40);
+        out.tip = '今日宜 ' + (out.yi[0] || '静养') + '，忌 ' + (out.ji[0] || '冒进') + '；整体 ' + (out.luck >= 60 ? '平稳向好' : '宜守不宜攻') + '。';
+      } catch (e) {}
+      try { localStorage.setItem(key, JSON.stringify(out)); } catch (e) {}
+      return out;
+    }
+    window.jarvis.divine = function (text) {
+      window.__anal('click', 'fate-divine');
+      return postJSON(AGENT_URL + '/api/divine', { message: text }, 120000)
+        .then(function (d) { return (d && d.reply) || '……'; })
+        .catch(function () { return '卦象未明，稍后再问，先生。'; });
+    };
+
+    /* ---- 网页内行为追踪 ---- */
+    function analStore() {
+      var s = {};
+      try { s = JSON.parse(localStorage.getItem('jarvis-ana') || '{}'); } catch (e) {}
+      var day = new Date().toISOString().slice(0, 10);
+      if (s.day !== day) s = { day: day };
+      return s;
+    }
+    window.__anal = function (type, key) {
+      var s = analStore();
+      if (type === 'click') { s.clicks = s.clicks || {}; s.clicks[key] = (s.clicks[key] || 0) + 1; }
+      if (type === 'voice') s.voice = (s.voice || 0) + 1;
+      if (type === 'chat') s.chat = (s.chat || 0) + 1;
+      if (type === 'scroll') {
+        var doc = document.documentElement;
+        var p = Math.round(doc.scrollTop / Math.max(1, doc.scrollHeight - innerHeight) * 100);
+        s.depth = Math.max(s.depth || 0, isFinite(p) ? p : 0);
+      }
+      try { localStorage.setItem('jarvis-ana', JSON.stringify(s)); } catch (e) {}
+    };
+    function habitAnalytics() {
+      var s = analStore();
+      var focus = {};
+      try { focus = JSON.parse(localStorage.getItem('jarvis-focus') || '{}'); } catch (e) {}
+      return { clicks: s.clicks || {}, voice: s.voice || 0, chat: s.chat || 0, depth: s.depth || 0, byMode: focus.byMode || {}, hours: focus.hours || {}, day: s.day };
+    }
+
+    /* ---- Token 用量 ---- */
+    window.jarvis.trackTokens = function (kind, chars) {
+      var s = {};
+      try { s = JSON.parse(localStorage.getItem('jarvis-tokens') || '{}'); } catch (e) {}
+      var day = new Date().toISOString().slice(0, 10);
+      if (s.day !== day) s = { day: day, msgs: 0, inTk: 0, outTk: 0 };
+      var tk = Math.max(1, Math.round((chars || 0) / 1.5));
+      s.msgs = (s.msgs || 0) + 1;
+      if (kind === 'in') s.inTk = (s.inTk || 0) + tk; else s.outTk = (s.outTk || 0) + tk;
+      try { localStorage.setItem('jarvis-tokens', JSON.stringify(s)); } catch (e) {}
+      return s;
+    };
+    function tokenStats() {
+      var s = {};
+      try { s = JSON.parse(localStorage.getItem('jarvis-tokens') || '{}'); } catch (e) {}
+      var inPrice = 0.27, outPrice = 1.10;
+      var cost = ((s.inTk || 0) * inPrice + (s.outTk || 0) * outPrice) / 1e6;
+      return { msgs: s.msgs || 0, inTk: s.inTk || 0, outTk: s.outTk || 0, cost: cost };
+    }
 
     /* ---- 全球热点 ---- */
     function renderHotTicker() {
@@ -1911,22 +2086,35 @@
       }).catch(function () { return LIVE.hot; });
     }
     window.DETAIL.hot = function () {
-      var items = LIVE.hot.slice(0, 8);
-      if (!items.length) return DEMO_DETAIL.hot();
-      var rows = items.map(function (it, i) {
-        return '<div class="dw-row"><span class="k">' + String(i + 1).padStart(2, '0') + '</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(it.title) + '</span><span class="v">' + esc(it.source) + ' · ' + fmtPub(it.pub) + '</span></div>';
+      var src = window.__hotSrc || 'news';
+      var items = src === 'news' ? LIVE.hot.slice(0, 10) : ((LIVE.cnHot[src] || []).slice(0, 12));
+      var tabs = [['news', '综合'], ['weibo', '微博'], ['zhihu', '知乎'], ['baidu', '百度'], ['douyin', '抖音']].map(function (t) {
+        var active = src === t[0] ? ' style="color:var(--acc1);border-bottom:2px solid var(--acc1)"' : '';
+        return '<span class="h-tab" data-src="' + t[0] + '" onclick="event.stopPropagation();window.showHotTab(\'' + t[0] + '\')"' + active + '>' + t[1] + '</span>';
       }).join('');
-      return '<div class="dw-block"><div class="dw-sub">实时热点 · 多源聚合</div>' + rows + '</div>';
+      var fallback = src !== 'news' && LIVE.cnFallback[src] ? ' <span style="color:#ffb86b;font-size:11px">备用</span>' : '';
+      var rows = items.length ? items.map(function (it, i) {
+        var link = it.link ? ' style="cursor:pointer" onclick="event.stopPropagation();window.__anal(\'click\',\'hot-open\');window.open(\'' + esc(it.link).replace(/'/g, '&#39;') + '\')"' : '';
+        return '<div class="dw-row"' + link + '><span class="k">' + String(i + 1).padStart(2, '0') + '</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(it.title) + '</span><span class="v">' + esc(it.heat || it.source || '') + '</span></div>';
+      }).join('') : '<div class="dw-row">加载中…</div>';
+      return '<div class="dw-block"><div class="dw-sub">热点多平台 · 点击直达原文</div>' +
+        '<div style="margin-bottom:8px;display:flex;gap:12px;flex-wrap:wrap">' + tabs + '</div>' +
+        '<div style="margin-bottom:6px"><input id="hotSearch" placeholder="搜索当前热点…" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;color:inherit" onclick="event.stopPropagation()" oninput="event.stopPropagation();window.__hotQ=this.value;refreshOpen(\'hot\')"></div>' + fallback + rows + '</div>';
     };
     window.DEEP.hot = function () {
-      var items = LIVE.hot.slice(0, 12);
+      var src = window.__hotSrc || 'news';
+      var items = src === 'news' ? LIVE.hot.slice(0, 15) : ((LIVE.cnHot[src] || []).slice(0, 20));
+      var q = (window.__hotQ || '').trim();
+      if (q) items = items.filter(function (it) { return it.title.indexOf(q) >= 0; });
       var list = items.length ? items.map(function (it) {
-        return '<div class="d-line">▸ ' + esc(it.title) + ' <span style="color:color-mix(in srgb,var(--acc1) 75%, transparent)">[' + esc(it.source) + ']</span></div>';
+        var link = it.link ? ' style="cursor:pointer" onclick="event.stopPropagation();window.open(\'' + esc(it.link).replace(/'/g, '&#39;') + '\')"' : '';
+        return '<div class="d-line"' + link + '>▸ ' + esc(it.title) + ' <span style="color:color-mix(in srgb,var(--acc1) 75%, transparent)">[' + esc(it.heat || it.source) + ']</span></div>';
       }).join('') : '<div class="d-line">暂无数据，稍后自动刷新</div>';
-      return '<div class="deep-card"><div class="d-t">实时热点大屏 · 自动刷新</div>' + list + '</div>' +
-        '<div class="deep-card"><div class="d-t">数据源</div>' +
-        '<div class="d-line">36氪 · 少数派 · 澎湃 · Hacker News（60 秒自动刷新，本地桥接服务聚合）</div>' +
-        '<div class="d-line">网络受限时自动回退内置样例。</div></div>';
+      var tips = src === 'news'
+        ? '<div class="d-line">36氪 · 少数派 · 澎湃 · Hacker News（60 秒自动刷新）</div>'
+        : '<div class="d-line">微博/知乎/百度/抖音热榜（120–180 秒缓存；源被平台限制时自动回退备用）</div>';
+      return '<div class="deep-card"><div class="d-t">热点大屏 · ' + (src === 'news' ? '综合资讯' : src) + (LIVE.cnFallback[src] ? ' · 备用数据' : '') + '</div>' + list + '</div>' +
+        '<div class="deep-card"><div class="d-t">数据源</div>' + tips + '<div class="d-line">点击任意一条直达原文页。</div></div>';
     };
 
     /* ---- AI 前沿 ---- */
@@ -1955,6 +2143,11 @@
       html += papers.length ? papers.map(function (p) {
         return '<div class="dw-row"><span class="k">📄</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(p.title) + '</span><span class="v">' + (p.pub || '').slice(0, 10) + '</span></div>';
       }).join('') : '<div class="dw-row">加载中…</div>';
+      html += '</div><div class="dw-block"><div class="dw-sub">模型目录 · 上下文与价格' + (LIVE.modelsFallback ? '（备用）' : '') + '</div>';
+      var catalog = LIVE.models.slice(0, 5);
+      html += catalog.length ? catalog.map(function (m) {
+        return '<div class="dw-row"><span class="k">◈</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(m.name || m.id) + '</span><span class="v">' + fmtNum(m.context) + ' ctx · $' + m.priceIn + '/M</span></div>';
+      }).join('') : '<div class="dw-row">加载中…</div>';
       return html + '</div>';
     };
     window.DEEP.ai = function () {
@@ -1966,8 +2159,18 @@
       var mhtml = models.length ? models.map(function (m) {
         return '<div class="d-line">◈ ' + esc(m.id) + ' · ' + fmtNum(m.downloads) + ' 下载 · ' + fmtNum(m.likes) + ' 赞</div>';
       }).join('') : '<div class="d-line">加载中…</div>';
+      var ts = tokenStats();
+      var catalog = LIVE.models.slice(0, 8);
+      var cat = catalog.length ? catalog.map(function (m) {
+        return '<div class="d-line">◈ ' + esc(m.name || m.id) + ' · 上下文 ' + fmtNum(m.context) + ' · 入 $' + m.priceIn + '/M · 出 $' + m.priceOut + '/M</div>';
+      }).join('') : '<div class="d-line">加载中…</div>';
       return '<div class="deep-card"><div class="d-t">arXiv 最新论文</div>' + phtml + '</div>' +
-        '<div class="deep-card"><div class="d-t">Hugging Face 热门模型</div>' + mhtml + '</div>';
+        '<div class="deep-card"><div class="d-t">Hugging Face 热门模型</div>' + mhtml + '</div>' +
+        '<div class="deep-card"><div class="d-t">模型目录 · 上下文 / 价格' + (LIVE.modelsFallback ? '（备用）' : '') + '</div>' + cat + '</div>' +
+        '<div class="deep-card"><div class="d-t">今日 Token 用量</div>' +
+        '<div class="d-line">对话 ' + ts.msgs + ' 条 · 输入 ' + fmtNum(ts.inTk) + ' · 输出 ' + fmtNum(ts.outTk) + '</div>' +
+        '<div class="d-bar"><i style="width:' + Math.min(100, 20 + ts.inTk / 500) + '%"></i></div>' +
+        '<div class="d-line">估算成本 ¥' + ts.cost.toFixed(4) + '（按 DeepSeek-chat 参考价）</div></div>';
     };
 
     /* ---- 行为洞察：真实记录 ---- */
@@ -2030,24 +2233,37 @@
       if (sum) sum.textContent = '今日专注 ' + hms(d.todaySec) + (d.peakHour ? ' · 高峰 ' + d.peakHour + ' 点' : ' · 数据积累中');
     }
     window.DETAIL.habit = function () {
-      var d = habitData();
-      var max = Math.max.apply(null, d.week.map(function (w) { return w.sec; })) || 1;
-      var rows = d.week.map(function (w) {
-        return '<div class="dw-row">' + w.label + ' ' + bar(Math.max(4, Math.round(w.sec / max * 100))) + '<span class="v">' + hms(w.sec) + '</span></div>';
-      }).join('');
-      return '<div class="dw-block"><div class="dw-sub">近 7 日真实使用时长</div>' + rows + '</div>';
+      var a = habitAnalytics();
+      var clicks = Object.keys(a.clicks).sort(function (x, y) { return a.clicks[y] - a.clicks[x]; }).slice(0, 3);
+      var top = clicks.length ? clicks.map(function (k) { return '<div class="dw-row"><span class="k">◈</span>' + esc(k) + '<span class="v">' + a.clicks[k] + ' 次</span></div>'; }).join('') : '<div class="dw-row">点击几个功能，这里出现你的行为画像。</div>';
+      return '<div class="dw-block"><div class="dw-sub">今日网页行为 · 本地分析</div>' +
+        '<div class="dw-row">🗂 点击 ' + Object.keys(a.clicks).length + ' 类 · ' + Object.values(a.clicks).reduce(function (s, v) { return s + v; }, 0) + ' 次<span class="v">语音 ' + a.voice + ' · 对话 ' + a.chat + '</span></div>' +
+        '<div class="dw-row">📜 滚动深度 ' + a.depth + '%<span class="v">活跃模块 ' + Object.keys(a.byMode).length + ' 个</span></div>' +
+        top + '</div>';
     };
     window.DEEP.habit = function () {
       var d = habitData();
-      var top = Object.keys(d.byMode).sort(function (a, b) { return (d.byMode[b] || 0) - (d.byMode[a] || 0); }).slice(0, 4);
+      var a = habitAnalytics();
+      var top = Object.keys(a.byMode).sort(function (x, y) { return (a.byMode[y] || 0) - (a.byMode[x] || 0); }).slice(0, 5);
       var tops = top.length ? top.map(function (m) {
-        return '<div class="d-line">▸ ' + esc(m) + '：' + hms(d.byMode[m]) + '</div>';
-      }).join('') : '<div class="d-line">多打开几个模块，这里会出现你的真实使用排行。</div>';
-      var w = Math.min(100, 18 + (d.todaySec / 3600) * 12);
-      return '<div class="deep-card"><div class="d-t">真实行为数据 · 本地记录</div>' +
-        '<div class="d-line">今日专注 ' + hms(d.todaySec) + ' · 高峰时段 ' + (d.peakHour ? d.peakHour + ' 点' : '待积累') + '</div>' +
-        '<div class="d-bar"><i style="width:' + w + '%"></i></div></div>' +
-        '<div class="deep-card"><div class="d-t">模块使用排行</div>' + tops + '</div>';
+        return '<div class="d-line">▸ ' + esc(m) + '：' + hms(a.byMode[m]) + '</div>';
+      }).join('') : '<div class="d-line">多停留几个模块，这里出现你的真实使用排行。</div>';
+      var clicks = Object.keys(a.clicks).sort(function (x, y) { return a.clicks[y] - a.clicks[x]; }).slice(0, 6);
+      var chtml = clicks.length ? clicks.map(function (k) { return '<div class="d-line">▸ ' + esc(k) + '：' + a.clicks[k] + ' 次</div>'; }).join('') : '<div class="d-line">暂无点击数据</div>';
+      var hmax = Math.max.apply(null, Object.keys(a.hours).map(function (h) { return a.hours[h]; }).concat([1]));
+      var hourBars = '';
+      for (var h = 0; h < 24; h++) {
+        var v = a.hours[h] || 0;
+        hourBars += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:8px;height:' + Math.max(2, Math.round(v / hmax * 48)) + 'px;background:var(--acc1);border-radius:2px;opacity:' + (v ? 0.9 : 0.15) + '"></div><span style="font-size:9px;opacity:.6">' + h + '</span></div>';
+      }
+      var peak = d.peakHour;
+      var tip = peak ? '高峰时段 ' + peak + ' 点，建议把深度工作安排在这个窗口。' : '多使用几个模块，系统会自动分析你的高效时段。';
+      return '<div class="deep-card"><div class="d-t">今日概览</div>' +
+        '<div class="d-line">点击 ' + Object.values(a.clicks).reduce(function (s, v) { return s + v; }, 0) + ' 次 · 语音 ' + a.voice + ' 次 · 对话 ' + a.chat + ' 条 · 滚动深度 ' + a.depth + '%</div>' +
+        '<div class="d-line">模块停留：' + hms(d.todaySec) + ' · ' + tip + '</div></div>' +
+        '<div class="deep-card"><div class="d-t">模块使用排行</div>' + tops + '</div>' +
+        '<div class="deep-card"><div class="d-t">功能点击榜</div>' + chtml + '</div>' +
+        '<div class="deep-card"><div class="d-t">活跃时段（24 小时）</div><div style="display:flex;align-items:flex-end;gap:2px;height:64px;margin-top:6px">' + hourBars + '</div></div>';
     };
 
     /* ---- 空间：真实文件 ---- */
@@ -2058,55 +2274,137 @@
       }).catch(function () { return LIVE.space; });
     }
     window.DETAIL.space = function () {
-      var files = LIVE.space.slice(0, 8);
-      var rows = files.length ? files.map(function (f) {
-        return '<div class="dw-row"><span class="k">' + (f.isDir ? '▣' : '▸') + '</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(f.path) + '</span><span class="v">' + (f.isDir ? '目录' : fmtSize(f.size)) + '</span></div>';
-      }).join('') : '<div class="dw-row">正在读取工作空间…</div>';
-      return '<div class="dw-block"><div class="dw-sub">工作空间 · 真实文件（只读）</div>' + rows + '</div>' +
-        '<div class="dw-block"><div class="dw-sub">启动器（需服务端 JARVIS_LAUNCH 配置）</div>' +
-        '<span class="dw-chip" onclick="event.stopPropagation();window.jarvis.launch(\'微信\')">启动 微信</span>' +
-        '<span class="dw-chip" onclick="event.stopPropagation();window.jarvis.launch(\'Chrome\')">启动 Chrome</span>' +
-        '<span class="dw-chip">游戏入口（JARVIS_GAME_URL）</span></div>';
+      var apps = LIVE.apps.slice(0, 10);
+      var appHtml = !LIVE.localOnly && apps.length ? apps.map(function (ap) {
+        return '<span class="dw-chip" onclick="event.stopPropagation();window.jarvis.openTarget(\'app\',\'' + esc(ap.name).replace(/'/g, '&#39;') + '\')">' + esc(ap.name) + '</span>';
+      }).join('') : '<div class="dw-row">本机功能：' + (LIVE.localOnly ? '当前为云端，仅展示仓库' : '正在读取应用…') + '</div>';
+      var searchHtml = LIVE.localOnly ? '' : '<div class="dw-block"><div class="dw-sub">文件搜索（本机工作空间）</div>' +
+        '<input id="spSearch" placeholder="输入文件名搜索…" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;color:inherit" onclick="event.stopPropagation()" oninput="event.stopPropagation();loadSearch(this.value)">' +
+        (LIVE.search.length ? LIVE.search.slice(0, 6).map(function (f) {
+          return '<div class="dw-row"><span class="k">' + (f.isDir ? '▣' : '▸') + '</span>' + esc(f.path) + '<span class="v">' + (f.isDir ? '目录' : fmtSize(f.size)) + '</span></div>';
+        }).join('') : '') + '</div>';
+      var repo = LIVE.repo.slice(0, 6);
+      var repoHtml = '<div class="dw-block"><div class="dw-sub">GitHub 仓库文件' + (LIVE.repoFallback ? '（备用）' : '') + '</div>' +
+        (repo.length ? repo.map(function (f) {
+          return '<div class="dw-row" style="cursor:pointer" onclick="event.stopPropagation();window.__anal(\'click\',\'space-repo\');window.open(\'https://github.com/liangfang20001128-coder/jarvis-terminal/blob/main/' + encodeURIComponent(f.path) + '\')"><span class="k">▸</span>' + esc(f.path) + '<span class="v">' + fmtSize(f.size) + '</span></div>';
+        }).join('') : '<div class="dw-row">加载中…</div>') + '</div>';
+      return '<div class="dw-block"><div class="dw-sub">本机应用 · 一键启动</div>' + appHtml + '</div>' + searchHtml + repoHtml;
     };
     window.DEEP.space = function () {
-      var files = LIVE.space.slice(0, 24);
-      var rows = files.length ? files.map(function (f) {
-        return '<div class="d-line">' + (f.isDir ? '▣ ' : '▸ ') + esc(f.path) + ' <span style="color:color-mix(in srgb,var(--acc1) 70%, transparent)">' + (f.isDir ? '目录' : fmtSize(f.size)) + '</span></div>';
-      }).join('') : '<div class="d-line">正在读取…</div>';
-      return '<div class="deep-card"><div class="d-t">工作空间 · 真实文件</div>' + rows + '</div>' +
-        '<div class="deep-card"><div class="d-t">说明</div>' +
-        '<div class="d-line">文件列表由本地桥接服务只读提供（项目目录）。</div>' +
-        '<div class="d-line">应用启动需配置 JARVIS_LAUNCH 白名单；游戏登录地址配置 JARVIS_GAME_URL。</div></div>';
+      var apps = LIVE.apps;
+      var appHtml = !LIVE.localOnly && apps.length ? apps.slice(0, 40).map(function (ap) {
+        return '<span class="dw-chip" onclick="event.stopPropagation();window.jarvis.openTarget(\'app\',\'' + esc(ap.name).replace(/'/g, '&#39;') + '\')">' + esc(ap.name) + '</span>';
+      }).join('') : '<div class="d-line">云端模式：应用启动仅在本机可用。</div>';
+      var searchHtml = LIVE.localOnly ? '' : '<div class="d-block"><input id="spSearch" placeholder="搜索文件…" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;color:inherit" onclick="event.stopPropagation()" oninput="event.stopPropagation();loadSearch(this.value)">' +
+        (LIVE.search.length ? LIVE.search.slice(0, 20).map(function (f) {
+          return '<div class="d-line">' + (f.isDir ? '▣ ' : '▸ ') + esc(f.path) + ' <span style="color:var(--acc1);cursor:pointer" onclick="event.stopPropagation();window.jarvis.openTarget(\'file\',\'' + esc(f.path).replace(/'/g, '&#39;') + '\')">打开</span> · <span style="color:var(--acc1);cursor:pointer" onclick="event.stopPropagation();window.jarvis.openTarget(\'reveal\',\'' + esc(f.path).replace(/'/g, '&#39;') + '\')">访达</span></div>';
+        }).join('') : '<div class="d-line">输入关键词搜索本机工作空间。</div>') + '</div>';
+      var repo = LIVE.repo.slice(0, 40);
+      var repoHtml = repo.length ? repo.map(function (f) {
+        return '<div class="d-line" style="cursor:pointer" onclick="event.stopPropagation();window.open(\'https://github.com/liangfang20001128-coder/jarvis-terminal/blob/main/' + encodeURIComponent(f.path) + '\')">▸ ' + esc(f.path) + ' <span style="color:color-mix(in srgb,var(--acc1) 70%, transparent)">' + fmtSize(f.size) + '</span></div>';
+      }).join('') : '<div class="d-line">加载仓库中…</div>';
+      return '<div class="deep-card"><div class="d-t">本机应用启动器</div>' + appHtml + '</div>' +
+        '<div class="deep-card"><div class="d-t">文件搜索与打开（仅本机）</div>' + searchHtml + '</div>' +
+        '<div class="deep-card"><div class="d-t">GitHub 仓库浏览器</div>' + repoHtml + '</div>';
     };
 
     /* ---- 影音：真实播放 ---- */
     window.DETAIL.media = function () {
-      return '<div class="dw-block"><div class="dw-sub">在线音频 · 真实流</div>' +
-        '<audio controls style="width:100%;border-radius:8px" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>' +
-        '<div class="dw-row">🎵 SoundHelix 示例曲目<span class="v">在线播放</span></div></div>' +
-        '<div class="dw-block"><div class="dw-sub">在线视频 · 公开示例</div>' +
-        '<video controls style="width:100%;border-radius:8px" src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>' +
-        '<div class="dw-row">🎬 Big Buck Bunny（公开测试素材）<span class="v">在线播放</span></div></div>';
+      var bili = LIVE.bili.slice(0, 6);
+      var biliHtml = '<div class="dw-block"><div class="dw-sub">B站热榜 · 点击内嵌播放' + (LIVE.biliFallback ? '（备用）' : '') + '</div>' +
+        (bili.length ? bili.map(function (v) {
+          return '<div class="dw-row" style="cursor:pointer" onclick="event.stopPropagation();window.playBili(\'' + esc(v.bvid) + '\')"><span class="k">▶</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(v.title) + '</span><span class="v">' + fmtNum(v.play) + ' 播放</span></div>';
+        }).join('') : '<div class="dw-row">加载中…（受限网络下可打开 B站网页版）</div>') + '</div>';
+      return '<div class="dw-block"><div class="dw-sub">个人账号直通 · 登录态跟随浏览器</div>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'media-douyin\');window.open(\'https://www.douyin.com\')">▶ 抖音</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'media-bili\');window.open(\'https://www.bilibili.com\')">▶ 哔哩哔哩</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'media-qqmusic\');window.open(\'https://y.qq.com\')">▶ QQ音乐</span></div>' +
+        biliHtml +
+        '<div class="dw-block"><div class="dw-sub">在线电台 · 公开直播流</div>' +
+        '<audio controls style="width:100%;border-radius:8px" src="https://ice2.somafm.com/secretagent-128-mp3"></audio>' +
+        '<div class="dw-row">🎧 Secret Agent（SomaFM）<span class="v">特工风 · 适配贾维斯</span></div></div>';
     };
     window.DEEP.media = function () {
-      return '<div class="deep-card"><div class="d-t">播放器</div>' +
-        '<audio controls style="width:100%" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>' +
-        '<div class="d-line">SoundHelix 示例曲目 · 可在线播放</div></div>' +
-        '<div class="deep-card"><div class="d-t">视频</div>' +
-        '<video controls style="width:100%;border-radius:10px" src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>' +
-        '<div class="d-line">Big Buck Bunny · 公开测试素材</div></div>';
+      var bili = LIVE.bili.slice(0, 10);
+      var play = LIVE.biliPlay;
+      var player = play ? '<iframe src="https://player.bilibili.com/player.html?bvid=' + esc(play) + '&autoplay=0&high_quality=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true" style="width:100%;height:230px;border-radius:10px;background:#000"></iframe>' +
+        '<div class="d-line" style="cursor:pointer;color:var(--acc1)" onclick="event.stopPropagation();window.open(\'https://www.bilibili.com/video/' + esc(play) + '\')">在 B站 打开 ▶</div>' : '<div class="d-line">点击上方热榜条目即可内嵌播放。</div>';
+      var list = bili.length ? bili.map(function (v) {
+        return '<div class="d-line" style="cursor:pointer" onclick="event.stopPropagation();window.playBili(\'' + esc(v.bvid) + '\')">▶ ' + esc(v.title) + ' <span style="color:color-mix(in srgb,var(--acc1) 70%, transparent)">' + esc(v.author) + ' · ' + fmtNum(v.play) + ' 播放</span></div>';
+      }).join('') : '<div class="d-line">B站热榜加载中…</div>';
+      var local = LIVE.localOnly ? '<div class="d-line">本机可一键启动已安装的 抖音 / 哔哩哔哩 / QQ音乐 桌面版。</div>' :
+        '<div class="d-line" style="cursor:pointer;color:var(--acc1)" onclick="event.stopPropagation();window.jarvis.launch(\'抖音\');window.jarvis.launch(\'哔哩哔哩\');window.jarvis.launch(\'QQ音乐\')">启动桌面版（需白名单）</div>';
+      return '<div class="deep-card"><div class="d-t">B站播放器</div>' + player + '</div>' +
+        '<div class="deep-card"><div class="d-t">B站热榜' + (LIVE.biliFallback ? ' · 备用' : '') + '</div>' + list + '</div>' +
+        '<div class="deep-card"><div class="d-t">账号直通与电台</div>' +
+        '<div class="d-line">抖音 / 哔哩哔哩 / QQ音乐：<span style="color:var(--acc1);cursor:pointer" onclick="event.stopPropagation();window.open(\'https://www.douyin.com\')">网页版</span> · ' +
+        '<span style="color:var(--acc1);cursor:pointer" onclick="event.stopPropagation();window.open(\'https://www.bilibili.com\')">B站</span> · ' +
+        '<span style="color:var(--acc1);cursor:pointer" onclick="event.stopPropagation();window.open(\'https://y.qq.com\')">QQ音乐</span></div>' + local +
+        '<audio controls style="width:100%;margin-top:8px" src="https://ice1.somafm.com/groovesalad-128-mp3"></audio>' +
+        '<div class="d-line">Groove Salad 电台 · 24 小时在线</div></div>';
     };
 
     /* ---- 时运：周易原文 ---- */
     window.DETAIL.fate = function () {
-      var h = window.__currentHex || { idx: 0, luck: 60 };
-      var name = (window.HEX && window.HEX[h.idx]) || '水火既济';
-      var txt = (window.GUA_TXT && window.GUA_TXT[h.idx]) || '';
-      return '<div class="dw-block"><div class="dw-sub">今日卦象 · 周易原文</div>' +
-        '<div class="dw-row"><span class="k">卦名</span> ' + esc(name) + '</div>' +
-        '<div class="dw-row"><span class="k">卦辞</span> ' + esc(txt) + '</div>' +
-        '<div class="dw-row"><span class="k">运势</span> ' + h.luck + ' 分 · 随时间片更新</div></div>' +
-        DEMO_DETAIL.fate();
+      var f = dailyFortune();
+      return '<div class="dw-block"><div class="dw-sub">今日玄学 · 离线农历计算</div>' +
+        '<div class="dw-row"><span class="k">农历</span> ' + esc(f.lunar) + '</div>' +
+        '<div class="dw-row"><span class="k">干支</span> ' + esc(f.ganzhi) + '</div>' +
+        '<div class="dw-row"><span class="k">卦象</span> ' + esc(f.hexName) + ' · 运势 ' + f.luck + ' 分</div>' +
+        '<div class="dw-row"><span class="k">宜</span> ' + esc((f.yi || []).join(' · ') || '—') + '</div>' +
+        '<div class="dw-row"><span class="k">忌</span> ' + esc((f.ji || []).join(' · ') || '—') + '</div>' +
+        '<div class="dw-row"><span class="k">指引</span> ' + esc(f.tip) + '</div></div>';
+    };
+    window.DEEP.fate = function () {
+      var f = dailyFortune();
+      return '<div class="deep-card"><div class="d-t">今日玄学 · 每日更新</div>' +
+        '<div class="d-line">农历 ' + esc(f.lunar) + '</div>' +
+        '<div class="d-line">干支 ' + esc(f.ganzhi) + '</div>' +
+        '<div class="d-line">卦象 ' + esc(f.hexName) + ' · 运势 ' + f.luck + ' 分</div>' +
+        '<div class="d-line">宜 ' + esc((f.yi || []).join(' · ') || '—') + '</div>' +
+        '<div class="d-line">忌 ' + esc((f.ji || []).join(' · ') || '—') + '</div>' +
+        '<div class="d-bar"><i style="width:' + f.luck + '%"></i></div>' +
+        '<div class="d-line">' + esc(f.tip) + '</div></div>' +
+        '<div class="deep-card"><div class="d-t">玄学顾问 · 智能体分身</div>' +
+        '<div class="d-line">问卦 / 解卦 / 命理 / 择日，由独立玄学人格回答（本地 Codex 或云端大模型）。</div>' +
+        '<div style="display:flex;gap:6px;margin-top:8px"><input id="divineInput" placeholder="如：今天适合签约吗？" style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 10px;color:inherit" onclick="event.stopPropagation()">' +
+        '<button onclick="event.stopPropagation();window.__anal(\'click\',\'fate-ask\');var i=document.getElementById(\'divineInput\');var o=document.getElementById(\'divineOut\');if(!i||!o)return;var t=i.value.trim();if(!t)return;o.innerHTML=\'<div class="cc-msg user">\'+esc(t)+\'</div><div class="cc-msg bot">推演中…</div>\';window.jarvis.divine(t).then(function(r){o.innerHTML=\'<div class="cc-msg user">\'+esc(t)+\'</div><div class="cc-msg bot">\'+esc(r)+\'</div>\';});" style="background:var(--acc1);border:none;color:#000;border-radius:8px;padding:6px 14px;cursor:pointer">问卦</button></div>' +
+        '<div id="divineOut" style="margin-top:8px"></div></div>';
+    };
+
+    /* ---- 对话：快捷指令 ---- */
+    window.DETAIL.chat = function () {
+      return '<div class="dw-block"><div class="dw-sub">快捷指令</div>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-hot\');window.jarvis.modules.open(\'hot\')">打开热点</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-fate\');window.jarvis.modules.open(\'fate\')">今日运势</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-media\');window.jarvis.modules.open(\'media\')">播放电台</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-habit\');window.jarvis.modules.open(\'habit\')">行为分析</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-ai\');window.jarvis.modules.open(\'ai\')">模型前沿</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-space\');window.jarvis.modules.open(\'space\')">启动应用</span></div>' +
+        '<div class="dw-block"><div class="dw-sub">语音与音色</div>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.jarvis.previewVoice()">音色试听</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.jarvis.modules.open(\'chat\');setTimeout(function(){window.openLayer(\'chat\',3)},100)">进入对话</span></div>';
+    };
+    window.DEEP.chat = function () {
+      return '<div class="chat-console" id="chatConsole">' +
+        '<div class="cc-msg bot">先生，我在。随时听候差遣。</div>' +
+        '</div>' +
+        '<div style="margin:6px 0;display:flex;gap:6px;flex-wrap:wrap">' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-hot\');window.jarvis.modules.open(\'hot\')">热点</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-fate\');window.jarvis.modules.open(\'fate\')">运势</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-media\');window.jarvis.modules.open(\'media\')">电台</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-ai\');window.jarvis.modules.open(\'ai\')">模型</span>' +
+        '<span class="dw-chip" onclick="event.stopPropagation();window.__anal(\'click\',\'quick-space\');window.jarvis.modules.open(\'space\')">应用</span></div>' +
+        '<div class="cc-hint">▸ 在底部指令栏输入，指令直达智能体核心；回复中的模块指令会自动执行。</div>' +
+        '<div style="margin-top:8px;padding:8px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(255,255,255,.03)">' +
+        '<div class="dw-sub" style="margin-bottom:6px">贾维斯音色</div>' +
+        '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px">' +
+        '<span onclick="event.stopPropagation();window.jarvis.previewVoice()" style="cursor:pointer;color:var(--acc1)">🔊 试听</span>' +
+        '<label>语速 <input type="range" min="0.6" max="1.4" step="0.05" value="' + (window.jarvis.voiceCfg ? window.jarvis.voiceCfg.rate : 0.95) + '" oninput="window.jarvis.setVoice(\'rate\',parseFloat(this.value))" style="vertical-align:middle"></label>' +
+        '<label>音调 <input type="range" min="0.5" max="1.2" step="0.05" value="' + (window.jarvis.voiceCfg ? window.jarvis.voiceCfg.pitch : 0.78) + '" oninput="window.jarvis.setVoice(\'pitch\',parseFloat(this.value))" style="vertical-align:middle"></label>' +
+        '<label><input type="checkbox" ' + (window.jarvis.voiceCfg && window.jarvis.voiceCfg.enLines ? 'checked' : '') + ' onclick="event.stopPropagation()" onchange="window.jarvis.setVoice(\'enLines\',this.checked)"> 英文台词</label>' +
+        '</div></div>' +
+        '<div class="cc-tip" id="ttsToggle" onclick="event.stopPropagation();window.jarvis.toggleTTS(this)" style="cursor:pointer">🔊 语音播报：开</div>';
     };
 
     /* ---- 扩展 jarvis API ---- */
@@ -2130,11 +2428,26 @@
     loadHot();
     loadAi();
     loadSpace();
+    loadChinaHot('weibo');
+    loadChinaHot('zhihu');
+    loadChinaHot('baidu');
+    loadChinaHot('douyin');
+    loadBili();
+    loadModels();
+    loadApps();
+    loadRepoTree();
     renderHabit();
     setTimeout(loadHot, 900);
     setInterval(loadHot, 60000);
     setInterval(loadAi, 600000);
+    setInterval(loadBili, 300000);
     setInterval(renderHabit, 30000);
+    window.addEventListener('scroll', function () {
+      if (window.__anal) window.__anal('scroll');
+    }, { passive: true });
+    setTimeout(function () {
+      if (window.jarvis && window.jarvis.sayEN) window.jarvis.sayEN('Systems online, sir.');
+    }, 1500);
   })();
 </script>
 
@@ -2150,22 +2463,78 @@
     try { TTS = localStorage.getItem('jarvis-tts') !== '0'; } catch (e) {}
 
     window.jarvis = window.jarvis || {};
+    var VOICE_CFG = { rate: 0.95, pitch: 0.78, enLines: true };
+    try {
+      var vc = JSON.parse(localStorage.getItem('jarvis-voice') || '{}');
+      VOICE_CFG = Object.assign(VOICE_CFG, vc);
+    } catch (e) {}
+    window.jarvis.voiceCfg = VOICE_CFG;
+    function pickVoice(lang) {
+      var vs = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+      var prefs = lang === 'zh'
+        ? ['Reed', 'Grandpa', 'Google 普通话（中国大陆）', 'Microsoft Yaoyao', 'Ting-Ting']
+        : ['Google UK English Male', 'Daniel', 'Oliver', 'Arthur'];
+      for (var i = 0; i < prefs.length; i++) {
+        var hit = null;
+        for (var j = 0; j < vs.length; j++) {
+          if (vs[j].name === prefs[i]) { hit = vs[j]; break; }
+        }
+        if (hit) return hit;
+      }
+      var prefix = lang === 'zh' ? 'zh' : 'en-GB';
+      var gb = vs.filter(function (v) { return v.lang && v.lang.indexOf(prefix) === 0; });
+      if (gb.length) return gb[0];
+      var en = vs.filter(function (v) { return v.lang && v.lang.indexOf(lang === 'zh' ? 'zh' : 'en') === 0; });
+      return en[0] || null;
+    }
     window.jarvis.speak = function (text) {
       if (!TTS || !('speechSynthesis' in window)) return;
       try {
         window.speechSynthesis.cancel();
         var u = new SpeechSynthesisUtterance(String(text || '').replace(/\[\[module:\w+\]\]/g, '').slice(0, 400));
-        u.lang = 'zh-CN';
-        u.rate = 1;
+        var lang = u._jarvisEN ? 'en' : 'zh';
+        var v = pickVoice(lang);
+        if (v) { u.voice = v; u.lang = v.lang; }
+        u.rate = VOICE_CFG.rate;
+        u.pitch = u._jarvisEN ? VOICE_CFG.pitch : Math.min(1, VOICE_CFG.pitch + 0.08);
         window.speechSynthesis.speak(u);
       } catch (e) {}
     };
+    window.jarvis.speakEN = function (text) {
+      if (!TTS || !('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        var u = new SpeechSynthesisUtterance(String(text || '').slice(0, 200));
+        u._jarvisEN = true;
+        var v = pickVoice('en');
+        if (v) { u.voice = v; u.lang = v.lang; }
+        u.rate = VOICE_CFG.rate;
+        u.pitch = VOICE_CFG.pitch;
+        window.speechSynthesis.speak(u);
+      } catch (e) {}
+    };
+    window.jarvis.sayEN = function (line) {
+      if (!VOICE_CFG.enLines) return;
+      if (line === 'notcatch') line = "I'm afraid I didn't catch that, sir.";
+      window.jarvis.speakEN(line);
+    };
+    window.jarvis.setVoice = function (k, v) {
+      VOICE_CFG[k] = v;
+      try { localStorage.setItem('jarvis-voice', JSON.stringify(VOICE_CFG)); } catch (e) {}
+    };
+    window.jarvis.previewVoice = function () {
+      if (window.__anal) window.__anal('click', 'voice-preview');
+      window.jarvis.speakEN('Systems online, sir. At your service.');
+    };
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = function () { pickVoice('en'); pickVoice('zh'); };
+    }
     window.jarvis.toggleTTS = function () {
       TTS = !TTS;
       try { localStorage.setItem('jarvis-tts', TTS ? '1' : '0'); } catch (e) {}
       if (!TTS) { try { window.speechSynthesis.cancel(); } catch (e) {} }
-      var t = document.getElementById('ttsToggle');
-      if (t) t.textContent = TTS ? '🔊 语音播报：开' : '🔇 语音播报：关';
+      var ts = document.querySelectorAll('#ttsToggle');
+      for (var i = 0; i < ts.length; i++) ts[i].textContent = TTS ? '🔊 语音播报：开' : '🔇 语音播报：关';
     };
     function setVoiceState(st) {
       if (!voiceBtn || !voiceLabel) return;
@@ -2194,6 +2563,7 @@
       recog.onerror = function () { listening = false; setVoiceState('off'); };
       recog.onend = function () { listening = false; setVoiceState('off'); };
       try { recog.start(); } catch (e) { listening = false; setVoiceState('off'); }
+      if (window.__anal) window.__anal('voice');
     }
     function stopListen() {
       if (recog) { try { recog.stop(); } catch (e) {} }

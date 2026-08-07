@@ -10,7 +10,7 @@
 //                  与 JARVIS_OPENAI_MODEL=deepseek-chat 即切换 DeepSeek）
 import { createServer } from "node:http";
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -83,17 +83,27 @@ function parseAtom(xml) {
   return items;
 }
 
-async function fetchWithTimeout(url, ms = 8000) {
+async function fetchWithTimeout(url, ms = 8000, headers = {}) {
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), ms);
   try {
     return await fetch(url, {
       signal: c.signal,
-      headers: { "User-Agent": "JarvisTerminal/1.0" },
+      headers: { "User-Agent": "JarvisTerminal/1.0", ...headers },
     });
   } finally {
     clearTimeout(t);
   }
+}
+
+const respCache = new Map();
+async function cachedFetch(url, { ms = 12000, ttl = 120000, headers = {} } = {}) {
+  const hit = respCache.get(url);
+  if (hit && Date.now() - hit.at < ttl) return hit.data;
+  const r = await fetchWithTimeout(url, ms, headers);
+  const data = await r.json().catch(() => ({}));
+  respCache.set(url, { at: Date.now(), data });
+  return data;
 }
 
 const hotCache = { at: 0, data: null };
@@ -150,6 +160,186 @@ async function getHot() {
   hotCache.data = res.slice(0, 15);
   hotCache.at = Date.now();
   return hotCache.data;
+}
+
+const CN_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36";
+async function getChinaHot(src) {
+  const pick = (list, fallback, n) =>
+    list && list.length ? { items: list.slice(0, n), fallback: false } : { items: fallback, fallback: true };
+  const demo = (s) => [{ title: `${s}热点暂不可用（备用数据）`, heat: "", link: "", source: s }];
+  try {
+    if (src === "weibo") {
+      try {
+        const j = await cachedFetch("https://weibo.com/ajax/side/hotSearch", {
+          headers: { "User-Agent": CN_UA, Referer: "https://weibo.com/" }, ttl: 120000,
+        });
+        const list = ((j.data && j.data.realtime) || [])
+          .filter((x) => x.word)
+          .map((x) => ({ title: x.word, heat: String(x.num || ""), link: `https://s.weibo.com/weibo?q=${encodeURIComponent(x.word)}`, source: "微博" }));
+        return pick(list, demo("微博"), 20);
+      } catch (e) {
+        const j = await cachedFetch("https://api.vvhan.com/api/hotlist/wbHot", { ttl: 120000 });
+        const list = ((j && j.data) || []).map((x) => ({ title: x.title, heat: x.hot || "", link: x.url || "", source: "微博" }));
+        return pick(list, demo("微博"), 20);
+      }
+    }
+    if (src === "zhihu") {
+      try {
+        const j = await cachedFetch("https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit=50", {
+          headers: { "User-Agent": CN_UA, Referer: "https://www.zhihu.com/hot" }, ttl: 180000,
+        });
+        const list = ((j && j.data) || [])
+          .map((x) => ({
+            title: (x.target && x.target.title) || "",
+            heat: x.detail_text || "",
+            link: x.target && x.target.id ? `https://www.zhihu.com/question/${x.target.id}` : "",
+            source: "知乎",
+          }))
+          .filter((x) => x.title);
+        return pick(list, demo("知乎"), 20);
+      } catch (e) {
+        const t = await cachedFetch("https://tenapi.cn/v2/zhihuhot", { ttl: 180000 }).catch(() => ({}));
+        const list = ((t && t.data) || []).map((x) => ({ title: x.title || "", heat: x.hot || "", link: x.url || "", source: "知乎" }));
+        return pick(list, demo("知乎"), 20);
+      }
+    }
+    if (src === "baidu") {
+      const j = await cachedFetch("https://top.baidu.com/api/board?platform=wise&tab=realtime", {
+        headers: { "User-Agent": CN_UA }, ttl: 180000,
+      });
+      const cards = (j && j.data && j.data.cards) || [];
+      const list = [];
+      for (const c of cards) {
+        for (const it of c.content || []) {
+          const raw = it.content;
+          if (typeof raw === "string") {
+            const words = [...raw.matchAll(/'word': '([^']*)'/g)].map((m) => m[1]);
+            const urls = [...raw.matchAll(/'url': '([^']*)'/g)].map((m) => m[1]);
+            for (let i = 0; i < words.length; i++) {
+              if (words[i]) list.push({ title: words[i], heat: `#${i + 1}`, link: urls[i] || "", source: "百度" });
+            }
+          } else if (Array.isArray(raw)) {
+            for (const x of raw) {
+              if (x && x.word) list.push({ title: x.word, heat: x.hotScore != null ? String(x.hotScore) : `#${list.length + 1}`, link: x.url || "", source: "百度" });
+            }
+          }
+        }
+      }
+      return pick(list, demo("百度"), 20);
+    }
+    if (src === "douyin") {
+      try {
+        const j = await cachedFetch("https://api.vvhan.com/api/hotlist/douyinHot", { ttl: 180000 });
+        const list = ((j && j.data) || [])
+          .map((x) => ({ title: x.title, heat: x.hot || "", link: x.url || "", source: "抖音" }))
+          .filter((x) => x.title);
+        return pick(list, demo("抖音"), 20);
+      } catch (e) {
+        const t = await cachedFetch("https://tenapi.cn/v2/douyinhot", { ttl: 180000 }).catch(() => ({}));
+        const list = ((t && t.data) || []).map((x) => ({ title: x.title || "", heat: x.hot || "", link: x.url || "", source: "抖音" }));
+        return pick(list, demo("抖音"), 20);
+      }
+    }
+    return pick([], demo("微博"), 20);
+  } catch (e) {
+    return { items: demo(src === "douyin" ? "抖音" : "微博"), fallback: true };
+  }
+}
+
+async function getBiliHot() {
+  try {
+    const attempts = [
+      () => cachedFetch("https://api.bilibili.com/x/web-interface/ranking/v2?rid=0&type=all", {
+        headers: { "User-Agent": CN_UA, Referer: "https://www.bilibili.com/" }, ttl: 300000,
+      }).then((j) => (j.data && j.data.list) || []),
+      () => cachedFetch("https://api.obfs.dev/api/bili/ranking?rid=0&type=all", { ttl: 300000 })
+        .then((j) => (j.data && j.data.list) || []),
+      () => cachedFetch("https://api.vvhan.com/api/hotlist/biliHot", { ttl: 300000 })
+        .then((j) => (j.data || []).map((x) => ({ bvid: x.bvid || "", title: x.title, pic: x.pic || "", author: x.author || "", play: x.hot || "", danmaku: "" }))),
+    ];
+    let raw = [];
+    for (const fn of attempts) {
+      try {
+        const arr = await fn();
+        if (Array.isArray(arr) && arr.length) { raw = arr; break; }
+      } catch (e) { /* 尝试下一个源 */ }
+    }
+    if (!raw.length) return { items: [{ bvid: "", title: "B站热榜暂不可用（备用数据）", pic: "", author: "", play: "", danmaku: "" }], fallback: true };
+    const list = raw.map((x) => ({
+      bvid: x.bvid || "",
+      title: x.title || "",
+      pic: x.pic || "",
+      author: (x.owner && x.owner.name) || x.author || "",
+      play: (x.stat && x.stat.view) || x.play || "",
+      danmaku: (x.stat && x.stat.danmaku) || x.danmaku || "",
+    }));
+    return { items: list.slice(0, 30), fallback: false };
+  } catch (e) {
+    return { items: [{ bvid: "", title: "B站热榜暂不可用（备用数据）", pic: "", author: "", play: "", danmaku: "" }], fallback: true };
+  }
+}
+
+const MODEL_DEMO = [
+  { id: "deepseek/deepseek-chat", name: "DeepSeek V3", context: 65536, priceIn: "0.27", priceOut: "1.10" },
+  { id: "openai/gpt-4o-mini", name: "GPT-4o mini", context: 128000, priceIn: "0.15", priceOut: "0.60" },
+  { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet", context: 200000, priceIn: "3.00", priceOut: "15.00" },
+  { id: "google/gemini-2.0-flash", name: "Gemini 2.0 Flash", context: 1048576, priceIn: "0.10", priceOut: "0.40" },
+  { id: "qwen/qwen2.5-72b-instruct", name: "Qwen 2.5 72B", context: 131072, priceIn: "0.90", priceOut: "0.90" },
+];
+async function getModelCatalog() {
+  try {
+    const j = await cachedFetch("https://openrouter.ai/api/v1/models", { ttl: 21600000 });
+    const list = (j.data || [])
+      .filter((x) => x.id)
+      .map((x) => ({
+        id: x.id,
+        name: x.name || x.id,
+        context: x.context_length || 0,
+        priceIn: x.pricing && x.pricing.prompt != null ? (Number(x.pricing.prompt) * 1e6).toFixed(3) : "-",
+        priceOut: x.pricing && x.pricing.completion != null ? (Number(x.pricing.completion) * 1e6).toFixed(3) : "-",
+      }));
+    return { models: list.length ? list : MODEL_DEMO, fallback: !list.length };
+  } catch (e) {
+    return { models: MODEL_DEMO, fallback: true };
+  }
+}
+
+const GITHUB_USER = process.env.JARVIS_GITHUB_USER || "liangfang20001128-coder";
+async function getGitHubActivity() {
+  try {
+    const [ev, r] = await Promise.all([
+      cachedFetch(`https://api.github.com/users/${GITHUB_USER}/events/public?per_page=100`, {
+        headers: { "User-Agent": "jarvis-terminal", Accept: "application/vnd.github+json" }, ttl: 900000,
+      }).catch(() => []),
+      cachedFetch(`https://api.github.com/users/${GITHUB_USER}/repos?sort=pushed&per_page=10`, {
+        headers: { "User-Agent": "jarvis-terminal", Accept: "application/vnd.github+json" }, ttl: 900000,
+      }).catch(() => []),
+    ]);
+    const byDay = {};
+    for (const e of Array.isArray(ev) ? ev : []) {
+      if (e && e.created_at) byDay[e.created_at.slice(0, 10)] = (byDay[e.created_at.slice(0, 10)] || 0) + 1;
+    }
+    const contributions = Object.keys(byDay).sort().map((date) => ({ date, count: byDay[date] }));
+    const repos = (Array.isArray(r) ? r : []).map((x) => ({
+      name: x.name, desc: x.description || "", stars: x.stargazers_count || 0,
+      lang: x.language || "", url: x.html_url || "",
+    }));
+    return { user: GITHUB_USER, contributions, repos, fallback: !contributions.length && !repos.length };
+  } catch (e) {
+    return { user: GITHUB_USER, contributions: [], repos: [], fallback: true };
+  }
+}
+
+async function getRepoTree() {
+  try {
+    const j = await cachedFetch(`https://api.github.com/repos/${GITHUB_USER}/jarvis-terminal/git/trees/main?recursive=1`, {
+      headers: { "User-Agent": "jarvis-terminal" }, ttl: 900000,
+    });
+    const tree = (j.tree || []).filter((x) => x.type === "blob").map((x) => ({ path: x.path, type: "file", size: x.size || 0 }));
+    return { tree, fallback: false };
+  } catch (e) {
+    return { tree: [{ path: "README.md", type: "file", size: 0 }], fallback: true };
+  }
 }
 
 const aiCache = { at: 0, data: null };
@@ -224,6 +414,68 @@ async function getWorkspace() {
   return list.slice(0, 50);
 }
 
+const APP_DIRS = ["/Applications", join(process.env.HOME || "/", "Applications")];
+function getApps() {
+  const apps = [];
+  for (const dir of APP_DIRS) {
+    if (!existsSync(dir)) continue;
+    try {
+      for (const ent of readdirSync(dir)) {
+        if (ent.endsWith(".app")) apps.push({ name: ent.slice(0, -4), path: join(dir, ent) });
+      }
+    } catch (e) { /* 单目录失败不影响 */ }
+  }
+  return apps.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function openTarget(type, value) {
+  const ROOT = process.cwd();
+  if (!existsSync("/Applications")) {
+    return Promise.resolve({ ok: false, localOnly: true, error: "本机功能仅在本机可用" });
+  }
+  if (type === "app") {
+    const names = new Set([...getApps().map((a) => a.name), ...Object.keys(launchAllowlist)]);
+    if (!names.has(String(value || ""))) {
+      return Promise.resolve({ ok: false, error: `应用不在白名单：${value}` });
+    }
+    return new Promise((resolve) => {
+      execFile("open", ["-a", String(value)], (err) =>
+        resolve(err ? { ok: false, error: String(err.message || err) } : { ok: true, message: `已启动 ${value}` })
+      );
+    });
+  }
+  const resolved = join(ROOT, String(value || "").replace(/^\/+/, ""));
+  if (!resolved.startsWith(ROOT) || !existsSync(resolved)) {
+    return Promise.resolve({ ok: false, error: "路径不合法或不存在" });
+  }
+  return new Promise((resolve) => {
+    execFile("open", type === "reveal" ? ["-R", resolved] : [resolved], (err) =>
+      resolve(err ? { ok: false, error: String(err.message || err) } : { ok: true, message: type === "reveal" ? "已在访达中显示" : "已打开" })
+    );
+  });
+}
+
+function searchWorkspace(q) {
+  const out = [];
+  const qq = String(q || "").toLowerCase();
+  const skip = new Set([".git", "node_modules", ".superpowers", ".playwright-cli", ".DS_Store"]);
+  function walk(dir, depth) {
+    if (depth > 3 || out.length >= 60) return;
+    let ents = [];
+    try { ents = readdirSync(dir); } catch (e) { return; }
+    for (const ent of ents) {
+      if (skip.has(ent)) continue;
+      const full = join(dir, ent);
+      let isDir = false, size = 0;
+      try { const st = statSync(full); isDir = st.isDirectory(); size = st.size; } catch (e) { continue; }
+      if (ent.toLowerCase().includes(qq)) out.push({ path: relative(process.cwd(), full), isDir, size });
+      if (isDir) walk(full, depth + 1);
+    }
+  }
+  walk(process.cwd(), 0);
+  return out.slice(0, 60);
+}
+
 let launchAllowlist = {};
 try {
   launchAllowlist = JSON.parse(process.env.JARVIS_LAUNCH || "{}");
@@ -267,7 +519,7 @@ function fallbackReply(text) {
   };
 }
 
-function runCodex(message) {
+function runCodex(message, systemPrompt = SYSTEM_PROMPT) {
   return new Promise((resolve, reject) => {
     const out = join(tmpdir(), `jarvis-codex-${randomUUID()}.txt`);
     const child = execFile(
@@ -283,11 +535,11 @@ function runCodex(message) {
         "-o",
         out,
       ],
-      { timeout: 60000, maxBuffer: 16 * 1024 * 1024 }
+      { timeout: 120000, maxBuffer: 16 * 1024 * 1024 }
     );
     let stderr = "";
     child.stderr.on("data", (d) => (stderr += d));
-    child.stdin.end(`${SYSTEM_PROMPT}\n\n用户：${message}`);
+    child.stdin.end(`${systemPrompt}\n\n用户：${message}`);
     child.on("close", (code) => {
       if (code !== 0) return reject(new Error(stderr || `codex exited ${code}`));
       try {
@@ -312,7 +564,7 @@ function apiProvider() {
   return /deepseek/i.test(apiBase()) ? "deepseek" : "openai";
 }
 
-async function runChatAPI(message) {
+async function runChatAPI(message, systemPrompt = SYSTEM_PROMPT) {
   const key = process.env.OPENAI_API_KEY;
   const model = apiModel();
   const r = await fetch(`${apiBase()}/chat/completions`, {
@@ -324,7 +576,7 @@ async function runChatAPI(message) {
     body: JSON.stringify({
       model,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: message },
       ],
       max_tokens: 900,
@@ -339,6 +591,37 @@ async function runChatAPI(message) {
   const out = String(text || "").trim();
   if (!out) throw new Error("大模型返回为空");
   return out;
+}
+
+const FATE_PROMPT = `你是「玄学顾问」，精通《周易》、命理、风水、节气民俗的中文顾问。
+回答要求：引经据典但理性克制，明确区分「传统说法」与「个人建议」；语言文言与白话结合，称呼对方为「先生」。
+不得承诺因果、不得制造焦虑；涉及健康、财务等重大决策时提醒理性参考。
+回答末尾可给出一个可操作的小建议。`;
+
+function hashCode(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return h;
+}
+
+async function runDivine(message) {
+  const useCodex = AGENT_MODE === "codex" || (AGENT_MODE === "auto" && codexAvailable());
+  if (useCodex) {
+    try {
+      return { agent: "codex", reply: await runCodex(String(message), FATE_PROMPT) };
+    } catch (e) { /* fallthrough */ }
+  }
+  if (process.env.OPENAI_API_KEY && (AGENT_MODE === "openai" || AGENT_MODE === "auto")) {
+    try {
+      return { agent: apiProvider(), reply: await runChatAPI(String(message), FATE_PROMPT) };
+    } catch (e) { /* fallthrough */ }
+  }
+  const fallback = [
+    "《易》曰：观乎天文，以察时变。先生所问之事，宜静观其变，三思而后行。",
+    "天行健，君子以自强不息。此问无吉凶定数，惟在先生一念之间。",
+    "亢龙有悔，盈不可久。眼下诸事宜守成，不宜冒进。",
+  ];
+  return { agent: "fallback", reply: fallback[Math.abs(hashCode(String(message))) % fallback.length] };
 }
 
 function chatMode() {
@@ -379,11 +662,49 @@ const server = createServer(async (req, res) => {
       launchKeys: Object.keys(launchAllowlist),
     });
   }
+  if (url.pathname === "/api/hot" && url.searchParams.get("cn")) {
+    try {
+      const src = url.searchParams.get("src") || "all";
+      const r = await getChinaHot(src);
+      return json(res, 200, { ok: true, src, items: r.items, fallback: r.fallback });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: String(e.message || e), items: [] });
+    }
+  }
   if (url.pathname === "/api/hot") {
     try {
       return json(res, 200, { ok: true, items: await getHot() });
     } catch (e) {
       return json(res, 200, { ok: false, error: String(e.message || e), items: [] });
+    }
+  }
+  if (url.pathname === "/api/bili/hot") {
+    try {
+      const r = await getBiliHot();
+      return json(res, 200, { ok: true, items: r.items, fallback: r.fallback });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: String(e.message || e), items: [] });
+    }
+  }
+  if (url.pathname === "/api/models") {
+    try {
+      return json(res, 200, { ok: true, ...(await getModelCatalog()) });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: String(e.message || e), models: [] });
+    }
+  }
+  if (url.pathname === "/api/github/activity") {
+    try {
+      return json(res, 200, { ok: true, ...(await getGitHubActivity()) });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: String(e.message || e), contributions: [], repos: [] });
+    }
+  }
+  if (url.pathname === "/api/repo/tree") {
+    try {
+      return json(res, 200, { ok: true, ...(await getRepoTree()) });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: String(e.message || e), tree: [] });
     }
   }
   if (url.pathname === "/api/ai") {
@@ -399,6 +720,51 @@ const server = createServer(async (req, res) => {
     } catch (e) {
       return json(res, 200, { ok: false, error: String(e.message || e), files: [] });
     }
+  }
+  if (url.pathname === "/api/workspace/search") {
+    try {
+      const q = url.searchParams.get("q") || "";
+      return json(res, 200, { ok: true, files: searchWorkspace(q) });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: String(e.message || e), files: [] });
+    }
+  }
+  if (url.pathname === "/api/apps") {
+    try {
+      if (!existsSync("/Applications")) return json(res, 200, { ok: true, localOnly: true, apps: [] });
+      return json(res, 200, { ok: true, localOnly: false, apps: getApps() });
+    } catch (e) {
+      return json(res, 200, { ok: false, error: String(e.message || e), apps: [] });
+    }
+  }
+  if (url.pathname === "/api/open" && req.method === "POST") {
+    let body = "";
+    req.on("data", (d) => (body += d));
+    req.on("end", async () => {
+      try {
+        const { type, value } = JSON.parse(body || "{}");
+        return json(res, 200, await openTarget(String(type || ""), String(value || "")));
+      } catch (e) {
+        return json(res, 500, { ok: false, error: String(e.message || e) });
+      }
+    });
+    return;
+  }
+  if (url.pathname === "/api/divine" && req.method === "POST") {
+    let body = "";
+    req.on("data", (d) => (body += d));
+    req.on("end", async () => {
+      try {
+        const { message } = JSON.parse(body || "{}");
+        if (!message || !String(message).trim()) {
+          return json(res, 400, { ok: false, error: "message 为空" });
+        }
+        return json(res, 200, { ok: true, ...(await runDivine(String(message))) });
+      } catch (e) {
+        return json(res, 500, { ok: false, error: String(e.message || e) });
+      }
+    });
+    return;
   }
   if (url.pathname === "/api/launch" && req.method === "POST") {
     let body = "";
