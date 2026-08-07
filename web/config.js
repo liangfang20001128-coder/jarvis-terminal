@@ -1,4 +1,9 @@
 // 贾维斯终端 · 智能体/数据桥接服务地址
-// 本地常驻：保持 http://127.0.0.1:8787（agent-server.mjs）
-// 云端部署：改为你的线上 API 地址，例如 https://your-api.onrender.com
-window.JARVIS_AGENT_URL = window.JARVIS_AGENT_URL || 'http://127.0.0.1:8787';
+// 本地打开（localhost）→ 连本机常驻服务（Codex + 真实数据）
+// 线上打开（GitHub Pages）→ 连 Render 云端服务（真实数据；对话需配置 OPENAI_API_KEY）
+(function () {
+  var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  window.JARVIS_AGENT_URL =
+    window.JARVIS_AGENT_URL ||
+    (isLocal ? 'http://127.0.0.1:8787' : 'https://jarvis-agent-oqcy.onrender.com');
+})();
