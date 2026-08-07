@@ -174,6 +174,7 @@
   /* floating panels — orbital composition */
   .fp {
     position: absolute; z-index: 3;
+    box-sizing: border-box;
     border-radius: 18px; padding: 12px 15px;
     background: linear-gradient(160deg, rgba(255,255,255,.13), rgba(255,255,255,.03));
     -webkit-backdrop-filter: blur(24px) saturate(190%); backdrop-filter: blur(24px) saturate(190%);
@@ -191,12 +192,74 @@
     transform: rotateX(0) rotateY(0) translateZ(20px) scale(var(--ls, 1.045));
     box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 0 0 1px color-mix(in srgb, var(--acc1) 55%, transparent), 0 0 52px color-mix(in srgb, var(--acc1) 45%, transparent), 0 30px 60px rgba(0,0,0,.5);
   }
+  .holo.auto-layout .fp {
+    transform: translateZ(0);
+  }
   .fp-hot   { top: 2%; right: 7%; width: 31%; transform-origin: right center; }
   .fp-ai    { top: 27%; right: 8%; width: 33%; transform-origin: right center; }
   .fp-fate  { bottom: 4%; right: 12%; width: 30%; transform-origin: right bottom; }
   .fp-habit { top: 33%; left: 4%; width: 18%; transform-origin: left center; }
   .fp-media { top: 4%; left: 5%; width: 17%; transform-origin: left center; }
   .fp-space { bottom: 6%; left: 3%; width: 20%; transform-origin: left bottom; }
+  .fp-weather { bottom: 6%; left: 38%; width: 26%; transform-origin: center bottom; }
+  .fp .lab { padding-left: 34px; }
+  .fp.expanded { padding-top: 34px; }
+  .win-bar {
+    position: absolute;
+    top: 9px;
+    left: 12px;
+    z-index: 8;
+    display: flex;
+    gap: 7px;
+    align-items: center;
+  }
+  .wb {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    cursor: pointer;
+    position: relative;
+    box-shadow: inset 0 -1px 1px rgba(0,0,0,.25);
+    transition: transform .15s, filter .15s;
+  }
+  .wb-close { background: #ff5f57; }
+  .wb-min { background: #febc2e; }
+  .wb-zoom { background: #28c840; }
+  .wb:hover { transform: scale(1.25); filter: brightness(1.15); }
+  .wb::after { content: ""; position: absolute; inset: -6px; }
+  .mini-dock {
+    position: relative;
+    z-index: 6;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 24px;
+    flex-wrap: wrap;
+    min-height: 0;
+  }
+  .md-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 10px;
+    letter-spacing: .5px;
+    color: color-mix(in srgb, var(--txt) 88%, transparent);
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.16);
+    border-radius: 999px;
+    padding: 6px 13px;
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    max-width: 230px;
+    transition: all .2s;
+  }
+  .md-pill:hover {
+    border-color: var(--acc1);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--acc1) 45%, transparent);
+    transform: translateY(-1px);
+  }
+  .md-pill .md-tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .tick { overflow: hidden; white-space: nowrap; font-size: 11px; color: color-mix(in srgb, var(--txt) 88%, transparent); }
   .tick .in { display: inline-block; padding-right: 40px; animation: marquee 10s linear infinite; }
@@ -830,6 +893,8 @@
     <div class="chip" data-mode="weather">天气</div>
   </div>
 
+  <div class="mini-dock" id="miniDock"></div>
+
   <div class="h-cmd">
     <span class="caret mono">▸</span>
     <input id="cmdInput" class="cmd-input" type="text" placeholder="说点什么，先生…" autocomplete="off" spellcheck="false" />
@@ -1336,11 +1401,40 @@
     fps.forEach(function (f) { BASE[f.getAttribute('data-mode')] = f.innerHTML; });
     window.__BASE_HTML = BASE;
 
+    window.injectWinBar = function (f) {
+      if (!f || f.querySelector('.win-bar')) return;
+      var mode = f.getAttribute('data-mode');
+      var bar = document.createElement('div');
+      bar.className = 'win-bar';
+      bar.setAttribute('onpointerdown', 'event.stopPropagation()');
+      bar.setAttribute('onclick', 'event.stopPropagation()');
+      bar.innerHTML = '<i class="wb wb-close" title="关闭"></i><i class="wb wb-min" title="最小化到状态栏"></i><i class="wb wb-zoom" title="展开详情"></i>';
+      bar.querySelector('.wb-close').addEventListener('click', function (e) {
+        e.stopPropagation();
+        window.__anal && window.__anal('click', 'win-close-' + mode);
+        if (f.classList.contains('expanded')) window.closeLayer();
+        else window.miniLayer(mode);
+      });
+      bar.querySelector('.wb-min').addEventListener('click', function (e) {
+        e.stopPropagation();
+        window.__anal && window.__anal('click', 'win-min-' + mode);
+        window.miniLayer(mode);
+      });
+      bar.querySelector('.wb-zoom').addEventListener('click', function (e) {
+        e.stopPropagation();
+        window.__anal && window.__anal('click', 'win-zoom-' + mode);
+        if (f.classList.contains('expanded')) window.closeLayer();
+        else window.openLayer(mode, 2);
+      });
+      f.appendChild(bar);
+    };
+    fps.forEach(function (f) { window.injectWinBar(f); });
+
     /* ==== drag to reposition ==== */
     var drag = null;
     fps.forEach(function (f) {
       f.addEventListener('pointerdown', function (e) {
-        if (e.target.closest('button, .cast-btn, .exp-more, .exp-close, .dw-x, .dw-deep-btn')) return;
+        if (e.target.closest('button, .cast-btn, .exp-more, .exp-close, .win-bar, .wb, .dw-x, .dw-deep-btn')) return;
         if (f.classList.contains('expanded')) return;
         if (holo.classList.contains('auto-layout')) return;
         drag = { f: f, x: e.clientX, y: e.clientY, l: f.offsetLeft, t: f.offsetTop, moved: false };
@@ -1557,12 +1651,11 @@
       var content = (level === 3 ? window.DEEP : window.DETAIL)[mode]();
       var more = level === 2 ? '<div class="exp-more" onclick="event.stopPropagation();window.openLayer(\'' + mode + '\',3)">◈ 深入 · 第三层</div>' : '';
       var close = '<div class="exp-close" onclick="event.stopPropagation();window.closeLayer()">✕</div>';
-      var mini = '<div class="exp-mini" onclick="event.stopPropagation();window.miniLayer(\'' + mode + '\')">▁ 缩小</div>';
       var sx = cw / targetW, sy = ch / targetH;
       f.style.transition = 'none';
       f.style.width = targetW + 'px';
       f.style.height = targetH + 'px';
-      f.innerHTML = content + close + more + mini;
+      f.innerHTML = content + close + more;
       f.style.transformOrigin = 'center center';
       f.style.transform =
         'translate(' + (cx - (f.offsetLeft + targetW / 2)) + 'px,' + (cy - (f.offsetTop + targetH / 2)) + 'px) scale(' + sx + ',' + sy + ')';
@@ -1570,6 +1663,7 @@
       f.style.transition = '';
       f.classList.add('expanded', level === 3 ? 'expanded-3' : 'expanded-2');
       f.setAttribute('data-level', level);
+      window.injectWinBar && window.injectWinBar(f);
       if (window.__track) window.__track(mode, 'open');
       holo.classList.add('layers-open');
       fps.forEach(function (p) { p.classList.toggle('dim', p !== f); });
@@ -1617,6 +1711,7 @@
         void f.offsetWidth;
         f.style.transition = '';
         f.setAttribute('data-level', '1');
+        window.injectWinBar && window.injectWinBar(f);
       }, 520);
     }
     window.openLayer = openLayer;
@@ -1633,46 +1728,64 @@
         fps.forEach(function (p) { p.classList.remove('dim'); });
       }
       if (window.__anal) window.__anal('click', 'mini-' + mode);
-      f.style.transition = 'none';
-      f.style.transform = '';
-      f.style.width = '168px';
-      f.style.height = '58px';
-      f.style.overflow = 'hidden';
-      f.innerHTML = (window.MINI && window.MINI[mode] ? window.MINI[mode]() : '◈ ' + mode) +
-        '<div class="mini-x" onclick="event.stopPropagation();window.restoreMini(\'' + mode + '\')">✕</div>';
       f.classList.add('mini');
       f.setAttribute('data-level', '0');
-      void f.offsetWidth;
-      f.style.transition = '';
+      f.style.display = 'none';
+      var line = document.querySelector('.links line[data-mode="' + mode + '"]');
+      if (line) line.style.opacity = '0';
+      addDockPill(mode);
       setLevels(0);
-      window.updateLinks && window.updateLinks();
+    }
+    function addDockPill(mode) {
+      var dock = document.getElementById('miniDock');
+      if (!dock || dock.querySelector('[data-mode="' + mode + '"]')) return;
+      var p = document.createElement('div');
+      p.className = 'md-pill';
+      p.setAttribute('data-mode', mode);
+      p.title = '点击还原';
+      p.innerHTML = '<span class="md-ic"></span><span class="md-tx"></span>';
+      p.addEventListener('click', function (e) {
+        e.stopPropagation();
+        restoreMini(mode);
+      });
+      dock.appendChild(p);
+      refreshMiniAll();
     }
     function restoreMini(mode) {
       var f = findPanel(mode);
       if (!f) return;
       if (window.__anal) window.__anal('click', 'mini-restore');
       f.classList.remove('mini');
-      f.style.width = '';
-      f.style.height = '';
-      f.style.transform = '';
-      f.style.overflow = '';
+      f.style.display = '';
       f.setAttribute('data-level', '1');
       f.innerHTML = (window.__BASE_HTML && window.__BASE_HTML[mode]) || f.innerHTML;
       var hint = document.createElement('div');
       hint.className = 'drag-hint';
       hint.textContent = '⣿ 拖动';
       f.appendChild(hint);
+      window.injectWinBar && window.injectWinBar(f);
+      var line = document.querySelector('.links line[data-mode="' + mode + '"]');
+      if (line) line.style.opacity = '';
+      var dock = document.getElementById('miniDock');
+      if (dock) {
+        var pill = dock.querySelector('[data-mode="' + mode + '"]');
+        if (pill) pill.remove();
+      }
       setLevels(1);
       window.updateLinks && window.updateLinks();
     }
     window.miniLayer = miniLayer;
     window.restoreMini = restoreMini;
     window.refreshMiniAll = function () {
-      fps.forEach(function (f) {
-        if (!f.classList.contains('mini')) return;
-        var m = f.getAttribute('data-mode');
-        f.innerHTML = (window.MINI && window.MINI[m] ? window.MINI[m]() : '◈ ' + m) +
-          '<div class="mini-x" onclick="event.stopPropagation();window.restoreMini(\'' + m + '\')">✕</div>';
+      var dock = document.getElementById('miniDock');
+      if (!dock) return;
+      dock.querySelectorAll('.md-pill').forEach(function (p) {
+        var m = p.getAttribute('data-mode');
+        var tx = (window.MINI && window.MINI[m]) ? window.MINI[m]() : '◈ ' + m;
+        var ic = p.querySelector('.md-ic');
+        var t = p.querySelector('.md-tx');
+        if (ic) ic.textContent = (tx.split(' ')[0] || '◈');
+        if (t) t.textContent = (tx.slice(tx.indexOf(' ') + 1) || tx);
       });
     };
     window.onPanelClick = function (mode) {
@@ -1948,7 +2061,7 @@
       if (holo.classList.contains('auto-layout')) setAuto(true);
     });
     try {
-      if (localStorage.getItem('jarvis-layout') === 'auto') {
+      if (localStorage.getItem('jarvis-layout') !== 'free') {
         setTimeout(function () { setAuto(true); }, 400);
       }
     } catch (e) {}
@@ -2005,8 +2118,8 @@
       var content = (level === 3 ? window.DEEP : window.DETAIL)[mode]();
       var close = '<div class="exp-close" onclick="event.stopPropagation();window.closeLayer()">✕</div>';
       var more = level === 2 ? '<div class="exp-more" onclick="event.stopPropagation();window.openLayer(\'' + mode + '\',3)">◈ 深入 · 第三层</div>' : '';
-      var mini = '<div class="exp-mini" onclick="event.stopPropagation();window.miniLayer(\'' + mode + '\')">▁ 缩小</div>';
-      f.innerHTML = content + close + more + mini;
+      f.innerHTML = content + close + more;
+      window.injectWinBar && window.injectWinBar(f);
     }
     window.refreshOpen = refreshOpen;
 
