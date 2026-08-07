@@ -12,7 +12,9 @@ services:
       - key: OPENAI_API_KEY
         sync: false
       - key: JARVIS_OPENAI_MODEL
-        value: gpt-4.1-mini
+        value: deepseek-chat
+      - key: JARVIS_OPENAI_BASE_URL
+        value: https://api.deepseek.com/v1
       - key: JARVIS_LAUNCH
         value: "{}"
       - key: JARVIS_GAME_URL

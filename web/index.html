@@ -1603,6 +1603,14 @@
         statusChip.style.background = '#3ef5a6';
         statusChip.style.boxShadow = '0 0 9px #3ef5a6';
         if (statusLabel) statusLabel.textContent = ' Codex 核心在线';
+      } else if (mode === 'deepseek') {
+        statusChip.style.background = '#4da3ff';
+        statusChip.style.boxShadow = '0 0 9px #4da3ff';
+        if (statusLabel) statusLabel.textContent = ' DeepSeek 云端在线';
+      } else if (mode === 'openai') {
+        statusChip.style.background = '#c3f04d';
+        statusChip.style.boxShadow = '0 0 9px #c3f04d';
+        if (statusLabel) statusLabel.textContent = ' OpenAI 云端在线';
       } else {
         statusChip.style.background = '#ffc47c';
         statusChip.style.boxShadow = '0 0 9px #ffc47c';

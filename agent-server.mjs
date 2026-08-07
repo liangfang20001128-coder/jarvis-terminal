@@ -4,6 +4,10 @@
 //   JARVIS_PORT  （默认 8787）
 //   JARVIS_AGENT （auto | codex | fallback，默认 auto：CLI 可用即用 Codex）
 //   CODEX_BIN    （Codex CLI 路径，默认 ChatGPT.app 内置）
+//   OPENAI_API_KEY / JARVIS_OPENAI_BASE_URL / JARVIS_OPENAI_MODEL
+//                 （云端对话：兼容 OpenAI / DeepSeek 等 OpenAI 协议服务；
+//                  设置 JARVIS_OPENAI_BASE_URL=https://api.deepseek.com/v1
+//                  与 JARVIS_OPENAI_MODEL=deepseek-chat 即切换 DeepSeek）
 import { createServer } from "node:http";
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -296,10 +300,22 @@ function runCodex(message) {
   });
 }
 
-async function runOpenAI(message) {
+function apiBase() {
+  return (process.env.JARVIS_OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
+}
+
+function apiModel() {
+  return process.env.JARVIS_OPENAI_MODEL || "gpt-4.1-mini";
+}
+
+function apiProvider() {
+  return /deepseek/i.test(apiBase()) ? "deepseek" : "openai";
+}
+
+async function runChatAPI(message) {
   const key = process.env.OPENAI_API_KEY;
-  const model = process.env.JARVIS_OPENAI_MODEL || "gpt-4.1-mini";
-  const r = await fetch("https://api.openai.com/v1/responses", {
+  const model = apiModel();
+  const r = await fetch(`${apiBase()}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -307,32 +323,29 @@ async function runOpenAI(message) {
     },
     body: JSON.stringify({
       model,
-      instructions: SYSTEM_PROMPT,
-      input: message,
-      max_output_tokens: 900,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: message },
+      ],
+      max_tokens: 900,
     }),
   });
   if (!r.ok) {
     const body = await r.text().catch(() => "");
-    throw new Error(`OpenAI API ${r.status}: ${String(body).slice(0, 240)}`);
+    throw new Error(`大模型 API ${r.status}: ${String(body).slice(0, 240)}`);
   }
   const j = await r.json();
-  const text = (j.output || [])
-    .filter((o) => o.type === "message")
-    .map((o) =>
-      (o.content || [])
-        .map((c) => (c.type === "output_text" || c.type === "text" ? c.text || "" : ""))
-        .join("")
-    )
-    .join("")
-    .trim();
-  if (!text) throw new Error("OpenAI 返回为空");
-  return text;
+  const text = (((j.choices || [])[0] || {}).message || {}).content;
+  const out = String(text || "").trim();
+  if (!out) throw new Error("大模型返回为空");
+  return out;
 }
 
 function chatMode() {
   if (AGENT_MODE === "codex" || (AGENT_MODE === "auto" && codexAvailable())) return "codex";
-  if (process.env.OPENAI_API_KEY && (AGENT_MODE === "openai" || AGENT_MODE === "auto")) return "openai";
+  if (process.env.OPENAI_API_KEY && (AGENT_MODE === "openai" || AGENT_MODE === "auto")) {
+    return apiProvider();
+  }
   return "fallback";
 }
 
@@ -358,6 +371,8 @@ const server = createServer(async (req, res) => {
     return json(res, 200, {
       ok: true,
       agent: chatMode(),
+      provider: apiProvider(),
+      model: apiModel(),
       codexAvailable: codexAvailable(),
       modules: MODULES,
       gameUrl: process.env.JARVIS_GAME_URL || null,
@@ -410,7 +425,7 @@ const server = createServer(async (req, res) => {
         const useCodex =
           !forceFallback &&
           (AGENT_MODE === "codex" || (AGENT_MODE === "auto" && codexAvailable()));
-        const useOpenAI =
+        const useAPI =
           !forceFallback &&
           !useCodex &&
           process.env.OPENAI_API_KEY &&
@@ -435,12 +450,12 @@ const server = createServer(async (req, res) => {
             });
           }
         }
-        if (useOpenAI) {
+        if (useAPI) {
           try {
-            const reply = await runOpenAI(String(message));
+            const reply = await runChatAPI(String(message));
             return json(res, 200, {
               ok: true,
-              agent: "openai",
+              agent: apiProvider(),
               reply,
               mod: parseModule(reply),
             });
