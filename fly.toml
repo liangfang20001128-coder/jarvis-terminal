@@ -1,0 +1,17 @@
+app = "jarvis-agent"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  JARVIS_PORT = "8787"
+  JARVIS_AGENT = "auto"
+  JARVIS_OPENAI_MODEL = "gpt-4.1-mini"
+  JARVIS_LAUNCH = "{}"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
