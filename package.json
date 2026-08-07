@@ -1,0 +1,14 @@
+{
+  "name": "jarvis-terminal-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "贾维斯全息终端 · 本地/云端智能体与实时数据桥接服务",
+  "main": "agent-server.mjs",
+  "scripts": {
+    "start": "node agent-server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
