@@ -35,12 +35,17 @@ launchctl unload ~/Library/LaunchAgents/com.jarvis.agent.plist
    git remote add origin https://github.com/<你的用户名>/<仓库名>.git
    git push -u origin main
    ```
-2. 推送后，仓库里的 `.github/workflows/pages.yml` 会自动把 `web/` 部署到 GitHub Pages，终端永久可访问：`https://<你的用户名>.github.io/<仓库名>/`。
+2. 打开仓库 **Settings → Pages**，Source 选择 **Deploy from a branch**，分支 `main`、目录 `/web`，保存后终端永久可访问：`https://<你的用户名>.github.io/<仓库名>/`。
+   （可选：给令牌增加 Workflows 权限后，把仓库内 `.github/workflows/pages.yml` 推上去，可改为每次推送自动发布。）
 3. 注意：线上页面默认连接本地桥接服务（`http://127.0.0.1:8787`）。要让线上页面也用上真实数据和 Codex，把 `agent-server.mjs` 部署到任意 Node 云主机（Render / Railway / Fly.io 等），然后修改 `web/config.js`：
    ```js
    window.JARVIS_AGENT_URL = 'https://你的线上API地址';
    ```
    未配置线上 API 时，页面会自动以演示数据运行，不白屏。
+
+> 网络提示：若本机 IPv6 异常导致 `git push` 卡住，可用 `node scripts/ipv4-proxy.mjs` 开启 IPv4 代理后执行
+> `git -c http.proxy=http://127.0.0.1:3128 push -u origin main`；
+> 或使用 `JGT=<令牌> JGT_MODE=contents node --dns-result-order=ipv4first scripts/push-api.mjs` 通过 GitHub API 上传。
 
 ## 配置项（环境变量，agent-server.mjs）
 
