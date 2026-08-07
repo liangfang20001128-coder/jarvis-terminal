@@ -2232,7 +2232,7 @@
       if (!w || !w.current) return '<div class="dw-block"><div class="dw-sub">天气</div><div class="dw-row">加载中…</div></div>';
       var cur = w.current;
       var days = (w.daily || []).slice(0, 4).map(function (d) {
-        var info = wmoInfo(d.code);
+        var info = { text: d.text || wmoInfo(d.code).text, emoji: d.emoji || wmoInfo(d.code).emoji };
         return '<div class="dw-row"><span class="k">' + weatherWeekday(d.date) + '</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + info.emoji + ' ' + info.text + '</span><span class="v">' + Math.round(d.tmin) + '° / ' + Math.round(d.tmax) + '°' + (d.pop != null ? ' · ☔' + d.pop + '%' : '') + '</span></div>';
       }).join('');
       return '<div class="dw-block"><div class="dw-sub">' + esc(w.city) + ' · 当前天气</div>' +
@@ -2245,7 +2245,7 @@
       if (!w || !w.current) return '<div class="deep-card"><div class="d-t">天气</div><div class="d-line">加载中…</div></div>';
       var cur = w.current;
       var days = (w.daily || []).map(function (d) {
-        var info = wmoInfo(d.code);
+        var info = { text: d.text || wmoInfo(d.code).text, emoji: d.emoji || wmoInfo(d.code).emoji };
         return '<div class="d-line">' + weatherWeekday(d.date) + ' ' + info.emoji + ' ' + info.text + ' · ' + Math.round(d.tmin) + '° ~ ' + Math.round(d.tmax) + '°' + (d.pop != null ? ' · 降水 ' + d.pop + '%' : '') + '</div>';
       }).join('');
       var cities = ['北京', '上海', '广州', '深圳', '成都', '杭州'];

@@ -346,15 +346,39 @@ function wmoInfo(code) {
 }
 
 const weatherCache = { at: 0, key: "", data: null };
+const WWTR_MAP = {
+  113: { emoji: "☀️", zh: "晴" }, 116: { emoji: "🌤️", zh: "大部晴朗" }, 119: { emoji: "⛅", zh: "多云" }, 122: { emoji: "☁️", zh: "阴" },
+  143: { emoji: "🌫️", zh: "雾" }, 248: { emoji: "🌫️", zh: "雾" }, 260: { emoji: "🌫️", zh: "雾" },
+  176: { emoji: "🌧️", zh: "零星小雨" }, 263: { emoji: "🌧️", zh: "小雨" }, 266: { emoji: "🌧️", zh: "小雨" },
+  293: { emoji: "🌧️", zh: "小雨" }, 296: { emoji: "🌧️", zh: "小雨" }, 299: { emoji: "🌧️", zh: "中雨" }, 302: { emoji: "🌧️", zh: "中雨" },
+  353: { emoji: "🌧️", zh: "阵雨" }, 356: { emoji: "🌧️", zh: "中雨" }, 359: { emoji: "🌧️", zh: "大雨" },
+  386: { emoji: "⛈️", zh: "雷阵雨" }, 389: { emoji: "⛈️", zh: "雷阵雨" },
+  179: { emoji: "🌨️", zh: "小雪" }, 182: { emoji: "🌨️", zh: "雨夹雪" }, 185: { emoji: "🌨️", zh: "雨夹雪" },
+  227: { emoji: "🌨️", zh: "小雪" }, 230: { emoji: "🌨️", zh: "中雪" }, 320: { emoji: "🌨️", zh: "小雪" },
+  323: { emoji: "🌨️", zh: "小雪" }, 326: { emoji: "🌨️", zh: "小雪" }, 329: { emoji: "🌨️", zh: "中雪" },
+  332: { emoji: "🌨️", zh: "中雪" }, 335: { emoji: "🌨️", zh: "大雪" }, 338: { emoji: "🌨️", zh: "大雪" },
+  368: { emoji: "🌨️", zh: "阵雪" }, 371: { emoji: "🌨️", zh: "阵雪" }, 374: { emoji: "🌨️", zh: "冰雨" }, 377: { emoji: "🌨️", zh: "冰雨" }, 395: { emoji: "🌨️", zh: "大雪" },
+  200: { emoji: "⛈️", zh: "雷暴" }, 201: { emoji: "⛈️", zh: "雷暴" }, 202: { emoji: "⛈️", zh: "雷暴" },
+};
+function wttrInfo(hourlyOrCur, code) {
+  const m = WWTR_MAP[code] || {};
+  const txt =
+    m.zh ||
+    (hourlyOrCur.lang_zh && hourlyOrCur.lang_zh[0] && hourlyOrCur.lang_zh[0].value) ||
+    (hourlyOrCur.weatherDesc && hourlyOrCur.weatherDesc[0] && hourlyOrCur.weatherDesc[0].value) ||
+    "未知";
+  return { code, text: txt, emoji: m.emoji || "🌡️" };
+}
+
 async function getWeatherWttr(city, lat, lon) {
   const q = lat && lon ? `${lat},${lon}` : encodeURIComponent(city);
-  const j = await cachedFetch(`https://wttr.in/${q}?format=j1`, { ttl: 600000 });
+  const j = await cachedFetch(`https://wttr.in/${q}?format=j1&lang=zh`, { ttl: 600000 });
   const cur = (j.current_condition || [])[0] || {};
   const days = (j.weather || []).slice(0, 7).map((d) => {
     const h = (d.hourly || [])[4] || {};
     return {
       date: d.date,
-      ...wmoInfo(Number(h.weatherCode) || 0),
+      ...wttrInfo(h, Number(h.weatherCode) || 0),
       tmax: d.maxtempC != null ? Number(d.maxtempC) : null,
       tmin: d.mintempC != null ? Number(d.mintempC) : null,
       pop: h.chanceofrain != null ? Number(h.chanceofrain) : null,
@@ -370,7 +394,7 @@ async function getWeatherWttr(city, lat, lon) {
       feels: cur.FeelsLikeC != null ? Number(cur.FeelsLikeC) : null,
       humidity: cur.humidity != null ? Number(cur.humidity) : null,
       wind: cur.windspeedKmph != null ? Number(cur.windspeedKmph) : null,
-      ...wmoInfo(Number(cur.weatherCode) || 0),
+      ...wttrInfo(cur, Number(cur.weatherCode) || 0),
     },
     daily: days,
     fallback: false,
