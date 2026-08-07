@@ -312,7 +312,10 @@ async function runOpenAI(message) {
       max_output_tokens: 900,
     }),
   });
-  if (!r.ok) throw new Error(`OpenAI API ${r.status}`);
+  if (!r.ok) {
+    const body = await r.text().catch(() => "");
+    throw new Error(`OpenAI API ${r.status}: ${String(body).slice(0, 240)}`);
+  }
   const j = await r.json();
   const text = (j.output || [])
     .filter((o) => o.type === "message")
